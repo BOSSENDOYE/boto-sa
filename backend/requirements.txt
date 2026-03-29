@@ -1,0 +1,19 @@
+django==4.2.16
+djangorestframework==3.15.2
+djangorestframework-simplejwt==5.3.1
+django-cors-headers==4.3.1
+django-filter==23.5
+drf-spectacular==0.27.2
+# psycopg2-binary==2.9.9  # PostgreSQL (not needed for SQLite dev)
+celery==5.3.6
+redis==5.0.3
+django-redis==5.4.0
+# Pillow==10.3.0  # Image processing (commented due to Python 3.13 build issue)
+openpyxl==3.1.2
+WeasyPrint==61.2
+django-auditlog==2.3.0
+python-decouple==3.8
+gunicorn==21.2.0
+whitenoise==6.6.0
+django-celery-beat==2.6.0
+django-celery-results==2.5.1
