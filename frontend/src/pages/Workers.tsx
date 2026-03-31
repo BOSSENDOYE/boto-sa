@@ -1,17 +1,20 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, UserPlus } from 'lucide-react'
+import { Search, UserPlus, Upload } from 'lucide-react'
 import { api } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Pagination } from '../components/ui/Pagination'
 import { CONTRACT_TYPE } from '../components/ui/Badge'
 import { Modal } from '../components/ui/Modal'
-import type { Worker, Department, JobPosition } from '../lib/types'
 
 const EMPTY_FORM = {
-  first_name: '', last_name: '', gender: 'M', date_of_birth: '',
-  phone: '', contract_type: 'CDI', department: '', job_position: '',
-  hire_date: '', emergency_contact: '', emergency_phone: '',
+  matricule: '',
+  first_name: '', last_name: '', gender: 'M',
+  date_of_birth: '', hire_date: '',
+  phone: '', contract_type: 'CDI',
+  department: '', job_position: '',
+  emergency_contact: '', emergency_phone: '',
+  blood_type: 'UNKNOWN', known_allergies: '',
 }
 
 export default function Workers() {
@@ -22,6 +25,8 @@ export default function Workers() {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [error, setError] = useState('')
+  const [importMsg, setImportMsg] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const queryClient = useQueryClient()
 
@@ -39,10 +44,7 @@ export default function Workers() {
 
   const { data: deptData } = useQuery({
     queryKey: ['departments-all'],
-    queryFn: async () => {
-      const { data } = await api.get('/departments/?page_size=100')
-      return data
-    },
+    queryFn: async () => { const { data } = await api.get('/departments/?page_size=100'); return data },
     enabled: showModal,
   })
 
@@ -71,24 +73,34 @@ export default function Workers() {
     onError: (err: any) => {
       const detail = err?.response?.data
       if (detail && typeof detail === 'object') {
-        const msg = Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | ')
-        setError(msg)
-      } else {
-        setError("Erreur lors de l'enregistrement.")
-      }
+        setError(Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | '))
+      } else setError("Erreur lors de l'enregistrement.")
     },
   })
 
-  const workers: Worker[] = data?.results ?? []
-  const departments: Department[] = deptData?.results ?? []
-  const positions: JobPosition[] = posData?.results ?? []
+  const importMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData()
+      fd.append('file', file)
+      const { data } = await api.post('/workers/import/', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return data
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['workers'] })
+      setImportMsg(`Import terminé : ${data.success_count} succès, ${data.error_count} erreur(s).`)
+    },
+    onError: () => setImportMsg("Erreur lors de l'import."),
+  })
+
+  const workers: any[] = data?.results ?? []
+  const departments: any[] = deptData?.results ?? []
+  const positions: any[] = posData?.results ?? []
   const totalPages = data ? Math.ceil(data.count / 20) : 1
 
   function reset() { setPage(1) }
-
-  function set(field: string, value: string) {
-    setForm(f => ({ ...f, [field]: value }))
-  }
+  function set(field: string, value: string) { setForm(f => ({ ...f, [field]: value })) }
 
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -101,48 +113,67 @@ export default function Workers() {
     mutation.mutate(payload)
   }
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) {
+      setImportMsg('')
+      importMutation.mutate(file)
+    }
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
   return (
     <div className="space-y-5 max-w-6xl">
       <PageHeader
         title="Travailleurs"
         subtitle={`${data?.count ?? 0} travailleur(s)`}
         action={
-          <button
-            onClick={() => { setShowModal(true); setError('') }}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-          >
-            <UserPlus size={15} /> Ajouter
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={importMutation.isPending}
+              className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <Upload size={15} /> {importMutation.isPending ? 'Import...' : 'Importer Excel'}
+            </button>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} />
+            <button
+              onClick={() => { setShowModal(true); setError('') }}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            >
+              <UserPlus size={15} /> Ajouter
+            </button>
+          </div>
         }
       />
+
+      {importMsg && (
+        <p className={`text-sm px-4 py-2 rounded-lg ${importMsg.includes('Erreur') ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
+          {importMsg}
+        </p>
+      )}
+
+      <div className="bg-gray-50 border border-blue-100 rounded-lg px-4 py-2 text-xs text-blue-700">
+        <strong>Format Excel attendu :</strong> colonnes Matricule · Prénom · Nom · Genre (M/F) · Département · Poste
+      </div>
 
       <div className="flex flex-wrap gap-3">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Nom, matricule, téléphone..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); reset() }}
-            className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
-          />
+          <input type="text" placeholder="Nom, matricule, téléphone..."
+            value={search} onChange={(e) => { setSearch(e.target.value); reset() }}
+            className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64" />
         </div>
-        <select
-          value={contractType}
-          onChange={(e) => { setContractType(e.target.value); reset() }}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
+        <select value={contractType} onChange={(e) => { setContractType(e.target.value); reset() }}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Tous les contrats</option>
           <option value="CDI">CDI</option>
           <option value="CDD">CDD</option>
           <option value="INTERN">Stagiaire</option>
           <option value="CONTRACTOR">Sous-traitant</option>
         </select>
-        <select
-          value={isActive}
-          onChange={(e) => { setIsActive(e.target.value); reset() }}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
+        <select value={isActive} onChange={(e) => { setIsActive(e.target.value); reset() }}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Actif & Inactif</option>
           <option value="true">Actif</option>
           <option value="false">Inactif</option>
@@ -171,19 +202,17 @@ export default function Workers() {
                 <td className="px-4 py-3 font-mono text-xs text-gray-600">{w.matricule}</td>
                 <td className="px-4 py-3">
                   <p className="font-medium text-gray-900">{w.last_name} {w.first_name}</p>
-                  <p className="text-xs text-gray-400">{w.gender === 'M' ? 'Homme' : 'Femme'} · {w.phone || '—'}</p>
+                  <p className="text-xs text-gray-400">{w.gender === 'M' ? 'Homme' : 'Femme'}</p>
                 </td>
-                <td className="px-4 py-3 text-gray-600">{w.department?.name ?? '—'}</td>
-                <td className="px-4 py-3 text-gray-600 max-w-[160px] truncate">{w.job_position?.title ?? '—'}</td>
+                <td className="px-4 py-3 text-gray-600">{w.department_name ?? '—'}</td>
+                <td className="px-4 py-3 text-gray-600 max-w-[160px] truncate">{w.job_position_title ?? '—'}</td>
                 <td className="px-4 py-3">
                   <span className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded font-medium">
                     {CONTRACT_TYPE[w.contract_type] ?? w.contract_type}
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    w.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
-                  }`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${w.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
                     {w.is_active ? 'Actif' : 'Inactif'}
                   </span>
                 </td>
@@ -191,16 +220,23 @@ export default function Workers() {
             ))}
           </tbody>
         </table>
-        <Pagination
-          page={page} totalPages={totalPages} totalCount={data?.count ?? 0}
-          onPrev={() => setPage(p => p - 1)} onNext={() => setPage(p => p + 1)}
-          label="travailleurs"
-        />
+        <Pagination page={page} totalPages={totalPages} totalCount={data?.count ?? 0}
+          onPrev={() => setPage(p => p - 1)} onNext={() => setPage(p => p + 1)} label="travailleurs" />
       </div>
 
       {showModal && (
         <Modal title="Nouveau travailleur" onClose={() => setShowModal(false)}>
           <form onSubmit={handleSubmit} className="space-y-4">
+
+            {/* Matricule */}
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Matricule *</label>
+              <input required value={form.matricule} onChange={e => set('matricule', e.target.value)}
+                placeholder="Ex: BTW-001"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
+            </div>
+
+            {/* Nom / Prénom */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Nom *</label>
@@ -214,13 +250,14 @@ export default function Workers() {
               </div>
             </div>
 
+            {/* Sexe / Date de naissance */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Sexe *</label>
                 <select required value={form.gender} onChange={e => set('gender', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="M">Homme</option>
-                  <option value="F">Femme</option>
+                  <option value="M">Masculin</option>
+                  <option value="F">Féminin</option>
                 </select>
               </div>
               <div>
@@ -230,12 +267,8 @@ export default function Workers() {
               </div>
             </div>
 
+            {/* Contrat / Date d'embauche */}
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Téléphone</label>
-                <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Type de contrat *</label>
                 <select required value={form.contract_type} onChange={e => set('contract_type', e.target.value)}
@@ -246,15 +279,21 @@ export default function Workers() {
                   <option value="CONTRACTOR">Sous-traitant</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Date d'embauche</label>
+                <input type="date" value={form.hire_date} onChange={e => set('hire_date', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
             </div>
 
+            {/* Département / Poste */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Département</label>
                 <select value={form.department} onChange={e => { set('department', e.target.value); set('job_position', '') }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">— Sélectionner —</option>
-                  {departments.map(d => <option key={d.id} value={String(d.id)}>{d.name}</option>)}
+                  {departments.map((d: any) => <option key={d.id} value={String(d.id)}>{d.name}</option>)}
                 </select>
               </div>
               <div>
@@ -262,26 +301,62 @@ export default function Workers() {
                 <select value={form.job_position} onChange={e => set('job_position', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">— Sélectionner —</option>
-                  {positions.map(p => <option key={p.id} value={String(p.id)}>{p.title}</option>)}
+                  {positions.map((p: any) => <option key={p.id} value={String(p.id)}>{p.title}</option>)}
                 </select>
               </div>
             </div>
 
+            {/* Téléphone / Groupe sanguin */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Téléphone</label>
+                <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
+                  placeholder="+221 77 000 00 00"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Groupe sanguin</label>
+                <select value={form.blood_type} onChange={e => set('blood_type', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="UNKNOWN">Inconnu</option>
+                  <option value="A+">A+</option><option value="A-">A-</option>
+                  <option value="B+">B+</option><option value="B-">B-</option>
+                  <option value="AB+">AB+</option><option value="AB-">AB-</option>
+                  <option value="O+">O+</option><option value="O-">O-</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Contact d'urgence */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Contact d'urgence</label>
+                <input value={form.emergency_contact} onChange={e => set('emergency_contact', e.target.value)}
+                  placeholder="Nom du contact"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Tél. urgence</label>
+                <input type="tel" value={form.emergency_phone} onChange={e => set('emergency_phone', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+
+            {/* Allergies */}
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Date d'embauche</label>
-              <input type="date" value={form.hire_date} onChange={e => set('hire_date', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-xs font-medium text-gray-700 mb-1">Allergies connues</label>
+              <textarea value={form.known_allergies} onChange={e => set('known_allergies', e.target.value)}
+                rows={2} placeholder="Aucune connue..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
             </div>
 
             {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
 
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setShowModal(false)}
-                className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                Annuler
-              </button>
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
               <button type="submit" disabled={mutation.isPending}
-                className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors">
+                className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg">
                 {mutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
               </button>
             </div>

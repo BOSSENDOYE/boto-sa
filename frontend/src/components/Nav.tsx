@@ -3,6 +3,7 @@ import {
   LayoutDashboard, Users, CalendarDays, Stethoscope,
   LogOut, Building2, Microscope, ShieldCheck, BarChart3,
   HeartPulse, AlertTriangle, Briefcase, Settings,
+  Activity, ClipboardList, Megaphone,
 } from 'lucide-react'
 import { logout } from '../lib/auth'
 import { useAuth } from '../hooks/useAuth'
@@ -26,6 +27,7 @@ const sections = [
     links: [
       { to: '/appointments', label: 'Rendez-vous', icon: CalendarDays },
       { to: '/encounters', label: 'Actes médicaux', icon: HeartPulse },
+      { to: '/nursing-acts', label: 'Actes infirmiers', icon: Activity },
       { to: '/consultations', label: 'Consultations', icon: Stethoscope },
       { to: '/medical-visits', label: 'Visites médicales', icon: Briefcase },
       { to: '/explorations', label: 'Explorations', icon: Microscope },
@@ -37,6 +39,8 @@ const sections = [
       { to: '/occupational/sms', label: 'Surveillance méd.', icon: ShieldCheck },
       { to: '/occupational/risks', label: 'Risques', icon: AlertTriangle },
       { to: '/work-accidents', label: 'Accidents travail', icon: AlertTriangle },
+      { to: '/job-sheets', label: 'Fiches de poste', icon: ClipboardList },
+      { to: '/activities', label: 'Activités service', icon: Megaphone },
     ],
   },
   {

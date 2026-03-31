@@ -13,6 +13,9 @@ import Occupational from './pages/Occupational'
 import Departments from './pages/Departments'
 import Reports from './pages/Reports'
 import Users from './pages/Users'
+import NursingActs from './pages/NursingActs'
+import JobSheet from './pages/JobSheet'
+import Activities from './pages/Activities'
 
 function App() {
   return (
@@ -38,6 +41,10 @@ function App() {
           <Route path="/departments" element={<Departments />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/users" element={<Users />} />
+          {/* Nursing / Occupational extras */}
+          <Route path="/nursing-acts" element={<NursingActs />} />
+          <Route path="/job-sheets" element={<JobSheet />} />
+          <Route path="/activities" element={<Activities />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

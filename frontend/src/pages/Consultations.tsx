@@ -12,8 +12,20 @@ const EMPTY = {
   worker: '', doctor: '',
   encounter_date: new Date().toISOString().split('T')[0],
   encounter_time: '',
-  chief_complaint: '', working_diagnosis: '', final_diagnosis: '',
-  icd10_code: '', sick_leave_days: '0', work_restriction: '',
+  chief_complaint: '',
+  disease_history: '',
+  family_history: '',
+  personal_history: '',
+  physical_exam_findings: '',
+  working_diagnosis: '',
+  final_diagnosis: '',
+  icd10_code: '',
+  treatment_plan: '',
+  referral_needed: 'false',
+  referral_note: '',
+  follow_up_date: '',
+  sick_leave_days: '0',
+  work_restriction: '',
 }
 
 export default function Consultations() {
@@ -59,15 +71,24 @@ export default function Consultations() {
         encounter_type: 'CONSULTATION',
       })
       // Step 2: create consultation
-      const { data } = await api.post('/consultations/', {
+      const body: Record<string, any> = {
         encounter: encRes.data.id,
         chief_complaint: payload.chief_complaint,
+        disease_history: payload.disease_history,
+        family_history: payload.family_history,
+        personal_history: payload.personal_history,
+        physical_exam_findings: payload.physical_exam_findings,
         working_diagnosis: payload.working_diagnosis,
         final_diagnosis: payload.final_diagnosis,
         icd10_code: payload.icd10_code,
+        treatment_plan: payload.treatment_plan,
+        referral_needed: payload.referral_needed === 'true',
+        referral_note: payload.referral_note,
         sick_leave_days: payload.sick_leave_days,
         work_restriction: payload.work_restriction,
-      })
+      }
+      if (payload.follow_up_date) body.follow_up_date = payload.follow_up_date
+      const { data } = await api.post('/consultations/', body)
       return data
     },
     onSuccess: () => {
@@ -143,14 +164,16 @@ export default function Consultations() {
               <tr><td colSpan={6} className="text-center py-10 text-gray-400">Chargement...</td></tr>
             ) : consultations.length === 0 ? (
               <tr><td colSpan={6} className="text-center py-10 text-gray-400">Aucune consultation trouvée.</td></tr>
-            ) : consultations.map((c) => {
+            ) : consultations.map((c: any) => {
               const statusBadge = ENCOUNTER_STATUS[c.encounter?.status ?? '']
               return (
                 <tr key={c.id} className="hover:bg-gray-50 cursor-pointer transition-colors">
-                  <td className="px-4 py-3 text-gray-600">{new Date(c.created_at).toLocaleDateString('fr-FR')}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {c.encounter_date ? new Date(c.encounter_date).toLocaleDateString('fr-FR') : new Date(c.created_at).toLocaleDateString('fr-FR')}
+                  </td>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900">{c.encounter?.worker?.first_name} {c.encounter?.worker?.last_name}</p>
-                    <p className="text-xs text-gray-400 font-mono">{c.encounter?.worker?.matricule}</p>
+                    <p className="font-medium text-gray-900">{c.worker_name}</p>
+                    <p className="text-xs text-gray-400 font-mono">{c.worker_matricule}</p>
                   </td>
                   <td className="px-4 py-3 text-gray-700 max-w-[180px] truncate">{c.chief_complaint || '—'}</td>
                   <td className="px-4 py-3 text-gray-700 max-w-[180px] truncate">
@@ -171,23 +194,26 @@ export default function Consultations() {
       </div>
 
       {showModal && (
-        <Modal title="Nouvelle consultation" onClose={() => setShowModal(false)}>
+        <Modal title="Nouvelle consultation" onClose={() => setShowModal(false)} wide>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Travailleur *</label>
-              <select required value={form.worker} onChange={e => set('worker', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">— Sélectionner —</option>
-                {workers.map((w: any) => <option key={w.id} value={String(w.id)}>{w.last_name} {w.first_name} ({w.matricule})</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Médecin *</label>
-              <select required value={form.doctor} onChange={e => set('doctor', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">— Sélectionner —</option>
-                {doctors.map((u: any) => <option key={u.id} value={String(u.id)}>Dr {u.last_name} {u.first_name}</option>)}
-              </select>
+            {/* Identité & date */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Travailleur *</label>
+                <select required value={form.worker} onChange={e => set('worker', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">— Sélectionner —</option>
+                  {workers.map((w: any) => <option key={w.id} value={String(w.id)}>{w.last_name} {w.first_name} ({w.matricule})</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Médecin *</label>
+                <select required value={form.doctor} onChange={e => set('doctor', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">— Sélectionner —</option>
+                  {doctors.map((u: any) => <option key={u.id} value={String(u.id)}>Dr {u.last_name} {u.first_name}</option>)}
+                </select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -201,9 +227,37 @@ export default function Consultations() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
+
+            {/* Motif & anamnèse */}
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">Anamnèse</p>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Motif de consultation *</label>
               <textarea required value={form.chief_complaint} onChange={e => set('chief_complaint', e.target.value)}
+                rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Histoire de la maladie</label>
+              <textarea value={form.disease_history} onChange={e => set('disease_history', e.target.value)}
+                rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Antécédents familiaux</label>
+                <textarea value={form.family_history} onChange={e => set('family_history', e.target.value)}
+                  rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Antécédents personnels</label>
+                <textarea value={form.personal_history} onChange={e => set('personal_history', e.target.value)}
+                  rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+              </div>
+            </div>
+
+            {/* Examen & diagnostic */}
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">Examen & diagnostic</p>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Résultats de l'examen physique</label>
+              <textarea value={form.physical_exam_findings} onChange={e => set('physical_exam_findings', e.target.value)}
                 rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
             </div>
             <div>
@@ -211,18 +265,58 @@ export default function Consultations() {
               <input value={form.working_diagnosis} onChange={e => set('working_diagnosis', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Diagnostic final</label>
+              <input value={form.final_diagnosis} onChange={e => set('final_diagnosis', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Code CIM-10</label>
+              <input value={form.icd10_code} onChange={e => set('icd10_code', e.target.value)} placeholder="Ex: J06.9"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+
+            {/* Plan de traitement */}
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">Plan de prise en charge</p>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Plan de traitement</label>
+              <textarea value={form.treatment_plan} onChange={e => set('treatment_plan', e.target.value)}
+                rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Code CIM-10</label>
-                <input value={form.icd10_code} onChange={e => set('icd10_code', e.target.value)} placeholder="Ex: J06.9"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Arrêt de travail (jours)</label>
                 <input type="number" min="0" value={form.sick_leave_days} onChange={e => set('sick_leave_days', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Date de suivi</label>
+                <input type="date" value={form.follow_up_date} onChange={e => set('follow_up_date', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Restriction de travail</label>
+              <input value={form.work_restriction} onChange={e => set('work_restriction', e.target.value)}
+                placeholder="Ex: Pas de port de charge > 10 kg"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={form.referral_needed === 'true'}
+                  onChange={e => set('referral_needed', e.target.checked ? 'true' : 'false')}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600" />
+                Référencement nécessaire
+              </label>
+            </div>
+            {form.referral_needed === 'true' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Note de référencement</label>
+                <textarea value={form.referral_note} onChange={e => set('referral_note', e.target.value)}
+                  rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+              </div>
+            )}
+
             {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setShowModal(false)}
