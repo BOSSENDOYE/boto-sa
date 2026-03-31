@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BOTO SA – Fiche Technique & Commerciale</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 15mm 18mm 15mm;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 10.5pt;
+      color: #1a1a2e;
+      background: #fff;
+      line-height: 1.55;
+    }
+
+    /* ── HEADER ────────────────────────────────── */
+    .header {
+      background: linear-gradient(135deg, #0f3460 0%, #16213e 60%, #1a4a8a 100%);
+      color: #fff;
+      padding: 28px 32px 22px;
+      position: relative;
+      overflow: hidden;
+    }
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: 0; right: 0;
+      width: 180px; height: 180px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 50%;
+      transform: translate(40%, 40%);
+    }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+    .brand h1 {
+      font-size: 28pt;
+      font-weight: 800;
+      letter-spacing: 3px;
+      color: #e2e8f0;
+    }
+    .brand .tagline {
+      font-size: 9.5pt;
+      color: #90cdf4;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-top: 3px;
+    }
+    .doc-label {
+      text-align: right;
+    }
+    .doc-label .type {
+      background: #e53e3e;
+      color: #fff;
+      font-size: 8pt;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 3px;
+      display: inline-block;
+      margin-bottom: 5px;
+    }
+    .doc-label .date {
+      font-size: 8.5pt;
+      color: #a0aec0;
+    }
+    .header-desc {
+      font-size: 11.5pt;
+      color: #cbd5e0;
+      max-width: 540px;
+      border-left: 3px solid #4299e1;
+      padding-left: 12px;
+    }
+
+    /* ── SECTION TITLES ─────────────────────────── */
+    .section {
+      margin: 20px 0 10px;
+    }
+    .section-title {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #0f3460;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      border-bottom: 2.5px solid #4299e1;
+      padding-bottom: 4px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .section-title .icon {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      background: #4299e1;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    /* ── BODY ───────────────────────────────────── */
+    .content {
+      padding: 18px 32px 24px;
+    }
+
+    /* ── INTRO PITCH ──────────────────────────── */
+    .pitch {
+      background: #ebf8ff;
+      border: 1px solid #bee3f8;
+      border-radius: 6px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      font-size: 10.5pt;
+      color: #2c5282;
+    }
+    .pitch strong {
+      color: #1a365d;
+    }
+
+    /* ── MODULE GRID ─────────────────────────── */
+    .module-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .module-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 10px 14px;
+      background: #f8fafc;
+    }
+    .module-card .m-title {
+      font-weight: 700;
+      font-size: 9.5pt;
+      color: #0f3460;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .module-card .m-title .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4299e1;
+      flex-shrink: 0;
+    }
+    .module-card ul {
+      padding-left: 15px;
+      font-size: 9pt;
+      color: #4a5568;
+    }
+    .module-card ul li { margin-bottom: 1px; }
+
+    /* ── TECH STACK ──────────────────────────── */
+    .stack-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .stack-box {
+      border-radius: 6px;
+      padding: 10px 14px;
+    }
+    .stack-box.backend  { background: #f0fff4; border: 1px solid #c6f6d5; }
+    .stack-box.frontend { background: #fffaf0; border: 1px solid #feebc8; }
+    .stack-box .s-title {
+      font-weight: 700;
+      font-size: 9.5pt;
+      margin-bottom: 6px;
+    }
+    .stack-box.backend  .s-title { color: #276749; }
+    .stack-box.frontend .s-title { color: #7b341e; }
+    .tag-list { display: flex; flex-wrap: wrap; gap: 5px; }
+    .tag {
+      font-size: 8pt;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .tag.green  { background: #c6f6d5; color: #22543d; }
+    .tag.orange { background: #feebc8; color: #7b341e; }
+    .tag.blue   { background: #bee3f8; color: #2a4365; }
+    .tag.purple { background: #e9d8fd; color: #44337a; }
+    .tag.red    { background: #fed7d7; color: #742a2a; }
+
+    /* ── TABLE ───────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.5pt;
+      margin-bottom: 4px;
+    }
+    thead tr { background: #0f3460; color: #fff; }
+    thead th {
+      padding: 7px 10px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 9pt;
+      letter-spacing: 0.5px;
+    }
+    tbody tr:nth-child(even) { background: #f7fafc; }
+    tbody tr:nth-child(odd)  { background: #fff; }
+    tbody td {
+      padding: 6px 10px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 7.5pt;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+    .badge.green  { background: #c6f6d5; color: #22543d; }
+    .badge.orange { background: #feebc8; color: #7b341e; }
+    .badge.blue   { background: #bee3f8; color: #2a4365; }
+    .badge.red    { background: #fed7d7; color: #742a2a; }
+
+    /* ── ADVANTAGES ──────────────────────────── */
+    .adv-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 9px;
+    }
+    .adv-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-top: 3px solid #4299e1;
+      border-radius: 6px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .adv-card .av-num {
+      font-size: 16pt;
+      font-weight: 800;
+      color: #4299e1;
+      line-height: 1;
+    }
+    .adv-card .av-label {
+      font-size: 8.5pt;
+      color: #4a5568;
+      margin-top: 3px;
+    }
+
+    /* ── PRICING ─────────────────────────────── */
+    .price-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+    .price-card {
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+    }
+    .price-card.starter  { background: #f7fafc; border: 1.5px solid #e2e8f0; }
+    .price-card.pro      { background: #0f3460; color: #fff; border: 1.5px solid #0f3460; }
+    .price-card.entreprise { background: #1a1a2e; color: #fff; border: 1.5px solid #1a1a2e; }
+    .price-card .p-tier  { font-size: 8.5pt; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; opacity: 0.75; margin-bottom: 5px; }
+    .price-card .p-price { font-size: 18pt; font-weight: 800; line-height: 1; }
+    .price-card .p-unit  { font-size: 8pt; opacity: 0.6; margin-bottom: 8px; }
+    .price-card ul       { list-style: none; text-align: left; font-size: 8.5pt; }
+    .price-card ul li    { padding: 2px 0; }
+    .price-card ul li::before { content: "✓  "; font-weight: 700; }
+    .price-card.starter ul li::before { color: #4299e1; }
+    .price-card.pro ul li::before     { color: #90cdf4; }
+    .price-card.entreprise ul li::before { color: #63b3ed; }
+
+    /* ── FOOTER ──────────────────────────────── */
+    .footer {
+      background: #1a1a2e;
+      color: #a0aec0;
+      text-align: center;
+      padding: 14px 32px;
+      font-size: 8.5pt;
+      margin-top: 24px;
+    }
+    .footer strong { color: #e2e8f0; }
+
+    /* ── PAGE BREAK ──────────────────────────── */
+    .page-break { page-break-before: always; }
+
+    @media print {
+      body { font-size: 9.5pt; }
+      .header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .footer { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════ HEADER -->
+<div class="header">
+  <div class="header-top">
+    <div class="brand">
+      <h1>BOTO SA</h1>
+      <div class="tagline">Système de Santé au Travail · Médecine du Travail Numérique</div>
+    </div>
+    <div class="doc-label">
+      <div class="type">Proposition Commerciale</div>
+      <div class="date">Version 1.0 &nbsp;|&nbsp; Mars 2026</div>
+    </div>
+  </div>
+  <div class="header-desc">
+    Solution digitale complète de gestion du service de santé au travail — de la surveillance médicale
+    à la traçabilité des risques professionnels et à la génération de rapports réglementaires.
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ═══ PITCH ════════════════════════════════════════ -->
+  <div class="pitch">
+    <strong>BOTO SA</strong> est une plateforme web full-stack dédiée aux services médicaux d'entreprise.
+    Elle centralise la gestion des travailleurs, des visites médicales, des consultations, des rendez-vous
+    et de la conformité réglementaire en santé au travail — accessible depuis n'importe quel navigateur,
+    sans installation client.
+  </div>
+
+  <!-- ═══ MODULES FONCTIONNELS ══════════════════════════ -->
+  <div class="section">
+    <div class="section-title"><span class="icon"></span>Modules Fonctionnels</div>
+    <div class="module-grid">
+
+      <div class="module-card">
+        <div class="m-title"><span class="dot"></span>Gestion des Travailleurs</div>
+        <ul>
+          <li>Dossier individuel complet (matricule, contrat, poste)</li>
+          <li>Groupe sanguin, allergies, contacts d'urgence</li>
+          <li>Curriculum Laboris (historique expositions)</li>
+          <li>Import en masse depuis fichier Excel/RH</li>
+          <li>Gestion des départements et postes de travail</li>
+        </ul>
+      </div>
+
+      <div class="module-card">
+        <div class="m-title"><span class="dot"></span>Visites Médicales</div>
+        <ul>
+          <li>Visite à l'embauche, périodique, reprise, départ</li>
+          <li>Examen physique multi-appareils (cardio, pulmonaire…)</li>
+          <li>Examen des urines (glucosurie, protéinurie…)</li>
+          <li>Bulletin d'aptitude avec numéro unique et PDF signé</li>
+          <li>Suivi de la prochaine visite obligatoire</li>
+        </ul>
+      </div>
+
+      <div class="module-card">
+        <div class="m-title"><span class="dot"></span>Consultations Médicales</div>
+        <ul>
+          <li>Motif, antécédents personnels et familiaux</li>
+          <li>Signes vitaux (tension, pouls, température, SpO2…)</li>
+          <li>Diagnostic (libre + code CIM-10)</li>
+          <li>Plan thérapeutique, orientation spécialisée</li>
+          <li>Arrêt de travail et restrictions de poste</li>
+        </ul>
+      </div>
+
+      <div class="module-card">
+        <div class="m-title"><span class="dot"></span>Gestion des Rendez-vous</div>
+        <ul>
+          <li>Planning médecin avec types de RDV paramétrables</li>
+          <li>Statuts : En attente · Confirmé · En cours · Terminé · Absent</li>
+          <li>Durée et code couleur par type d'acte</li>
+          <li>Notifications automatiques (Celery)</li>
+        </ul>
+      </div>
+
+      <div class="module-card">
+        <div class="m-title"><span class="dot"></span>Risques Professionnels & Poste</div>
+        <ul>
+          <li>Fiche de poste versionnée et approuvée</li>
+          <li>Cartographie des risques : bruit, chimique, biologique, ergonomique, psychosocial…</li>
+          <li>Niveau de risque 1–4 avec mesures préventives et EPI</li>
+          <li>Surveillance médicale spéciale (SMS) active</li>
+        </ul>
+      </div>
+
+      <div class="module-card">
+        <div class="m-title"><span class="dot"></span>Accidents du Travail</div>
+        <ul>
+          <li>Déclaration et suivi d'accident (bénin → fatal)</li>
+          <li>Jours perdus, date de reprise, reconnaissance AT</li>
+          <li>Lien automatique avec la consultation associée</li>
+        </ul>
+      </div>
+
+      <div class="module-card">
+        <div class="m-title"><span class="dot"></span>Activités du Service Médical</div>
+        <ul>
+          <li>Sensibilisations, formations, visites de poste</li>
+          <li>Inspections et couvertures médicales</li>
+          <li>Rapport de visite de poste exportable en PDF</li>
+          <li>Nombre de participants et travailleurs impliqués</li>
+        </ul>
+      </div>
+
+      <div class="module-card">
+        <div class="m-title"><span class="dot"></span>Rapports & Exports</div>
+        <ul>
+          <li>Rapports quotidiens, hebdomadaires, mensuels, personnalisés</li>
+          <li>Export PDF (WeasyPrint) et Excel (OpenPyXL)</li>
+          <li>Génération asynchrone en arrière-plan (Celery)</li>
+          <li>Journal d'audit complet de toutes les actions</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ STACK TECHNIQUE ═══════════════════════════════ -->
+  <div class="section">
+    <div class="section-title"><span class="icon"></span>Architecture Technique</div>
+    <div class="stack-grid">
+      <div class="stack-box backend">
+        <div class="s-title">Backend — API REST</div>
+        <div class="tag-list">
+          <span class="tag green">Python 3.12+</span>
+          <span class="tag green">Django 4.2</span>
+          <span class="tag green">Django REST Framework</span>
+          <span class="tag green">JWT (SimpleJWT)</span>
+          <span class="tag blue">Celery 5.3</span>
+          <span class="tag blue">Redis</span>
+          <span class="tag blue">Celery Beat</span>
+          <span class="tag purple">WeasyPrint (PDF)</span>
+          <span class="tag purple">OpenPyXL (Excel)</span>
+          <span class="tag orange">Django Auditlog</span>
+          <span class="tag orange">drf-spectacular (OpenAPI)</span>
+          <span class="tag green">Gunicorn + WhiteNoise</span>
+          <span class="tag blue">SQLite (dev) / PostgreSQL (prod)</span>
+        </div>
+      </div>
+      <div class="stack-box frontend">
+        <div class="s-title">Frontend — SPA Moderne</div>
+        <div class="tag-list">
+          <span class="tag orange">React 19</span>
+          <span class="tag orange">TypeScript 5.9</span>
+          <span class="tag orange">Vite 8</span>
+          <span class="tag orange">TailwindCSS 3.4</span>
+          <span class="tag red">React Router v7</span>
+          <span class="tag red">TanStack React Query</span>
+          <span class="tag red">Axios</span>
+          <span class="tag purple">Lucide React (icônes)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SÉCURITÉ & CONFORMITÉ ════════════════════════ -->
+  <div class="section">
+    <div class="section-title"><span class="icon"></span>Sécurité &amp; Conformité</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Dimension</th>
+          <th>Mesure Implémentée</th>
+          <th>Statut</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Authentification</strong></td>
+          <td>JWT Access + Refresh Tokens (expiration configurable)</td>
+          <td><span class="badge green">Inclus</span></td>
+        </tr>
+        <tr>
+          <td><strong>Contrôle d'accès</strong></td>
+          <td>Permissions par rôle (médecin, infirmier, admin, RH)</td>
+          <td><span class="badge green">Inclus</span></td>
+        </tr>
+        <tr>
+          <td><strong>Audit Trail</strong></td>
+          <td>Journalisation automatique de toutes les modifications (django-auditlog)</td>
+          <td><span class="badge green">Inclus</span></td>
+        </tr>
+        <tr>
+          <td><strong>CORS</strong></td>
+          <td>Origines autorisées configurable (django-cors-headers)</td>
+          <td><span class="badge green">Inclus</span></td>
+        </tr>
+        <tr>
+          <td><strong>Documentation API</strong></td>
+          <td>OpenAPI 3 / Swagger auto-généré (drf-spectacular)</td>
+          <td><span class="badge green">Inclus</span></td>
+        </tr>
+        <tr>
+          <td><strong>Confidentialité données</strong></td>
+          <td>Données médicales isolées, accès restreint par rôle</td>
+          <td><span class="badge blue">Architecture</span></td>
+        </tr>
+        <tr>
+          <td><strong>Déploiement sécurisé</strong></td>
+          <td>Variables d'environnement via python-decouple, HTTPS recommandé</td>
+          <td><span class="badge orange">Config prod</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══ AVANTAGES CLÉS ════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title"><span class="icon"></span>Chiffres Clés &amp; Avantages</div>
+    <div class="adv-grid">
+      <div class="adv-card">
+        <div class="av-num">9</div>
+        <div class="av-label">Modules métier intégrés</div>
+      </div>
+      <div class="adv-card">
+        <div class="av-num">100%</div>
+        <div class="av-label">API REST documentée (OpenAPI)</div>
+      </div>
+      <div class="adv-card">
+        <div class="av-num">PDF + XLS</div>
+        <div class="av-label">Exports natifs intégrés</div>
+      </div>
+      <div class="adv-card">
+        <div class="av-num">Async</div>
+        <div class="av-label">Tâches Celery / Redis</div>
+      </div>
+      <div class="adv-card">
+        <div class="av-num">Multi-rôle</div>
+        <div class="av-label">Médecin, Infirmier, Admin, RH</div>
+      </div>
+      <div class="adv-card">
+        <div class="av-num">Open</div>
+        <div class="av-label">Architecture extensible & maintenable</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ OFFRES COMMERCIALES ══════════════════════════ -->
+  <div class="section">
+    <div class="section-title"><span class="icon"></span>Offres Commerciales</div>
+    <div class="price-grid">
+
+      <div class="price-card starter">
+        <div class="p-tier">Starter</div>
+        <div class="p-price" style="color:#0f3460;">Sur devis</div>
+        <div class="p-unit" style="color:#718096;">Petite structure (&lt; 200 travailleurs)</div>
+        <ul style="color:#2d3748;">
+          <li>Modules Travailleurs + Visites</li>
+          <li>Rendez-vous & Consultations</li>
+          <li>Exports PDF & Excel</li>
+          <li>Support email 5j/7</li>
+          <li>1 utilisateur médecin</li>
+        </ul>
+      </div>
+
+      <div class="price-card pro">
+        <div class="p-tier">Professionnel</div>
+        <div class="p-price">Sur devis</div>
+        <div class="p-unit">Structure moyenne (200–1 000 travailleurs)</div>
+        <ul>
+          <li>Tous les modules Starter</li>
+          <li>Risques professionnels & SMS</li>
+          <li>Activités du service médical</li>
+          <li>Rapports automatisés</li>
+          <li>Multi-utilisateurs (5 comptes)</li>
+          <li>Support prioritaire</li>
+        </ul>
+      </div>
+
+      <div class="price-card entreprise">
+        <div class="p-tier">Entreprise</div>
+        <div class="p-price">Sur devis</div>
+        <div class="p-unit">Grande entreprise / Groupe industriel</div>
+        <ul>
+          <li>Tous les modules Pro</li>
+          <li>Multi-sites / Multi-départements</li>
+          <li>Intégration SI RH (import automatique)</li>
+          <li>Déploiement on-premise ou cloud dédié</li>
+          <li>Utilisateurs illimités</li>
+          <li>SLA garanti + formation équipe</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ CONDITIONS DE MISE EN ŒUVRE ═════════════════ -->
+  <div class="section">
+    <div class="section-title"><span class="icon"></span>Conditions de Mise en Œuvre</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Phase</th>
+          <th>Description</th>
+          <th>Livrable</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>1 — Analyse & Paramétrage</strong></td>
+          <td>Recueil des besoins, configuration des départements, postes, types de visites</td>
+          <td>Cahier de configuration validé</td>
+        </tr>
+        <tr>
+          <td><strong>2 — Déploiement</strong></td>
+          <td>Installation serveur (cloud ou on-premise), configuration sécurité et domaine</td>
+          <td>Environnement de production opérationnel</td>
+        </tr>
+        <tr>
+          <td><strong>3 — Migration des données</strong></td>
+          <td>Import des travailleurs existants via Excel/RH, historique médical si disponible</td>
+          <td>Base de données initialisée et vérifiée</td>
+        </tr>
+        <tr>
+          <td><strong>4 — Formation</strong></td>
+          <td>Formation utilisateurs (médecin, infirmiers, admins), documentation fournie</td>
+          <td>Sessions de formation + guide utilisateur</td>
+        </tr>
+        <tr>
+          <td><strong>5 — Assistance & Évolution</strong></td>
+          <td>Support technique, correctifs, évolutions fonctionnelles sur demande</td>
+          <td>Contrat de maintenance mensuel/annuel</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══ PRÉREQUIS TECHNIQUES ═════════════════════════ -->
+  <div class="section">
+    <div class="section-title"><span class="icon"></span>Prérequis Techniques Minimaux</div>
+    <table>
+      <thead>
+        <tr><th>Composant</th><th>Spécification</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Serveur applicatif</td>
+          <td>Linux Ubuntu 22.04 LTS, 2 vCPU, 4 Go RAM, 50 Go SSD</td>
+          <td>Cloud ou on-premise</td>
+        </tr>
+        <tr>
+          <td>Base de données</td>
+          <td>PostgreSQL 14+ (prod) ou SQLite (pilote)</td>
+          <td>Inclus dans le déploiement</td>
+        </tr>
+        <tr>
+          <td>Cache / File d'attente</td>
+          <td>Redis 7+</td>
+          <td>Pour Celery et notifications</td>
+        </tr>
+        <tr>
+          <td>Navigateur client</td>
+          <td>Chrome, Firefox, Edge (version récente)</td>
+          <td>Aucune installation requise</td>
+        </tr>
+        <tr>
+          <td>Réseau</td>
+          <td>HTTPS recommandé (Let's Encrypt gratuit), port 443</td>
+          <td>Accès intranet possible</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════ FOOTER -->
+<div class="footer">
+  <strong>BOTO SA</strong> &nbsp;·&nbsp; Système de Gestion de Santé au Travail &nbsp;·&nbsp;
+  Document confidentiel à usage commercial &nbsp;·&nbsp; Version 1.0 – Mars 2026<br/>
+  Pour toute question : <strong>contact@boto-sa.com</strong> &nbsp;|&nbsp; www.boto-sa.com
+</div>
+
+</body>
+</html>
