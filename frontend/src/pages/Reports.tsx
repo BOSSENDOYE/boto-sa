@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { BarChart3, FileText, Download } from 'lucide-react'
+import { BarChart3, FileText, Download, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Modal } from '../components/ui/Modal'
@@ -41,6 +41,7 @@ export default function Reports() {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [error, setError] = useState('')
+  const [deleteItem, setDeleteItem] = useState<GeneratedReport | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['reports'],
@@ -66,6 +67,16 @@ export default function Reports() {
       if (detail && typeof detail === 'object') {
         setError(Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | '))
       } else setError("Erreur lors de la génération.")
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/reports/${id}/`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['reports'] })
+      setDeleteItem(null)
     },
   })
 
@@ -134,12 +145,18 @@ export default function Reports() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {r.file && r.status === 'READY' && (
-                        <a href={r.file} target="_blank" rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs font-medium">
-                          <Download size={13} /> Télécharger
-                        </a>
-                      )}
+                      <div className="flex gap-1">
+                        {r.file && r.status === 'READY' && (
+                          <a href={r.file} target="_blank" rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs font-medium">
+                            <Download size={13} /> Télécharger
+                          </a>
+                        )}
+                        <button onClick={() => setDeleteItem(r)}
+                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Supprimer">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -201,6 +218,20 @@ export default function Reports() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteItem && (
+        <Modal title="Confirmer la suppression" onClose={() => setDeleteItem(null)}>
+          <p className="text-sm text-gray-700 mb-6">Voulez-vous vraiment supprimer <strong>le rapport "{deleteItem.name}"</strong> ? Cette action est irréversible.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setDeleteItem(null)}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+            <button type="button" onClick={() => deleteMutation.mutate(deleteItem.id)} disabled={deleteMutation.isPending}
+              className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg">
+              {deleteMutation.isPending ? 'Suppression...' : 'Supprimer'}
+            </button>
+          </div>
         </Modal>
       )}
     </div>

@@ -2,7 +2,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db.models import Count, Sum
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from apps.medical_acts.models import ClinicalEncounter, RapidDiagnosticTest
 from apps.consultations.models import WorkAccident
 from apps.workers.models import Worker
@@ -19,7 +19,9 @@ class DashboardView(viewsets.ViewSet):
         enc_today = ClinicalEncounter.objects.filter(encounter_date=today, is_deleted=False)
         enc_week = ClinicalEncounter.objects.filter(encounter_date__gte=week_start, is_deleted=False)
         enc_month = ClinicalEncounter.objects.filter(encounter_date__gte=month_start, is_deleted=False)
-        rdt_today = RapidDiagnosticTest.objects.filter(performed_at__date=today)
+        today_start = datetime.combine(today, datetime.min.time())
+        today_end = today_start + timedelta(days=1)
+        rdt_today = RapidDiagnosticTest.objects.filter(performed_at__gte=today_start, performed_at__lt=today_end)
         accidents_month = WorkAccident.objects.filter(accident_date__gte=month_start)
 
         return Response({

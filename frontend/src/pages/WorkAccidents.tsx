@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2 } from 'lucide-react'
+import { useToast } from '../hooks/useToast'
 import { api } from '../lib/api'
 import { Badge, ACCIDENT_SEVERITY } from '../components/ui/Badge'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -25,12 +26,15 @@ const EMPTY = {
 
 export default function WorkAccidents() {
   const qc = useQueryClient()
+  const { toast } = useToast()
   const [search, setSearch] = useState('')
   const [severity, setSeverity] = useState<AccidentSeverity | ''>('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [error, setError] = useState('')
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['work-accidents', search, severity, page],
@@ -46,7 +50,7 @@ export default function WorkAccidents() {
   const { data: workersData } = useQuery({
     queryKey: ['workers-all'],
     queryFn: async () => { const { data } = await api.get('/workers/?page_size=200'); return data },
-    enabled: showModal,
+    enabled: showModal || editItem !== null,
   })
 
   const mutation = useMutation({
@@ -56,15 +60,48 @@ export default function WorkAccidents() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['work-accidents'] })
+      toast('Enregistrement réussi')
       setShowModal(false)
       setForm(EMPTY)
       setError('')
     },
     onError: (err: any) => {
       const detail = err?.response?.data
-      if (detail && typeof detail === 'object') {
-        setError(Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | '))
-      } else setError("Erreur lors de l'enregistrement.")
+      const errMsg = detail && typeof detail === 'object' ? Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | ') : "Erreur lors de l'enregistrement."
+      toast(errMsg, 'error')
+      setError(errMsg)
+    },
+  })
+
+  const editMutation = useMutation({
+    mutationFn: async (payload: typeof EMPTY) => {
+      const { data } = await api.patch(`/work-accidents/${editItem!.id}/`, payload)
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['work-accidents'] })
+      toast('Modification réussie')
+      setEditItem(null)
+      setShowModal(false)
+      setForm(EMPTY)
+      setError('')
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data
+      const errMsg = detail && typeof detail === 'object' ? Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | ') : "Erreur lors de la modification."
+      toast(errMsg, 'error')
+      setError(errMsg)
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/work-accidents/${id}/`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['work-accidents'] })
+      toast('Suppression réussie')
+      setDeleteItem(null)
     },
   })
 
@@ -77,7 +114,11 @@ export default function WorkAccidents() {
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
-    mutation.mutate(form)
+    if (editItem) {
+      editMutation.mutate(form)
+    } else {
+      mutation.mutate(form)
+    }
   }
 
   return (
@@ -86,7 +127,7 @@ export default function WorkAccidents() {
         title="Accidents du travail"
         subtitle={`${data?.count ?? 0} accident(s)`}
         action={
-          <button onClick={() => { setShowModal(true); setError('') }}
+          <button onClick={() => { setShowModal(true); setEditItem(null); setForm(EMPTY); setError('') }}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
             <Plus size={15} /> Déclarer un accident
           </button>
@@ -117,17 +158,18 @@ export default function WorkAccidents() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Sévérité</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Arrêt (j.)</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Reconnu</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Chargement...</td></tr>
+              <tr><td colSpan={8} className="text-center py-10 text-gray-400">Chargement...</td></tr>
             ) : accidents.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Aucun accident trouvé.</td></tr>
+              <tr><td colSpan={8} className="text-center py-10 text-gray-400">Aucun accident trouvé.</td></tr>
             ) : accidents.map((a) => {
               const badge = ACCIDENT_SEVERITY[a.severity]
               return (
-                <tr key={a.id} className="hover:bg-gray-50 cursor-pointer transition-colors">
+                <tr key={a.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-700">{new Date(a.accident_date).toLocaleDateString('fr-FR')}</td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-gray-900">{a.worker.first_name} {a.worker.last_name}</p>
@@ -144,6 +186,32 @@ export default function WorkAccidents() {
                       {a.is_recognized ? 'Oui' : 'Non'}
                     </span>
                   </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <button onClick={() => {
+                        setEditItem(a)
+                        setForm({
+                          worker: String(a.worker.id),
+                          accident_date: a.accident_date,
+                          location: a.location ?? '',
+                          circumstance: a.circumstance ?? '',
+                          body_part_injured: a.body_part_injured ?? '',
+                          injury_type: a.injury_type ?? '',
+                          severity: a.severity,
+                          lost_work_days: String(a.lost_work_days ?? 0),
+                        })
+                        setShowModal(true)
+                        setError('')
+                      }}
+                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => setDeleteItem(a)}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               )
             })}
@@ -154,7 +222,7 @@ export default function WorkAccidents() {
       </div>
 
       {showModal && (
-        <Modal title="Déclarer un accident du travail" onClose={() => setShowModal(false)}>
+        <Modal title={editItem ? "Modifier l'accident" : "Déclarer un accident du travail"} onClose={() => { setShowModal(false); setEditItem(null); setForm(EMPTY) }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Travailleur *</label>
@@ -210,14 +278,28 @@ export default function WorkAccidents() {
             </div>
             {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowModal(false)}
+              <button type="button" onClick={() => { setShowModal(false); setEditItem(null); setForm(EMPTY) }}
                 className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-              <button type="submit" disabled={mutation.isPending}
+              <button type="submit" disabled={mutation.isPending || editMutation.isPending}
                 className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg">
-                {mutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                {(mutation.isPending || editMutation.isPending) ? 'Enregistrement...' : editItem ? 'Modifier' : 'Enregistrer'}
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteItem && (
+        <Modal title="Confirmer la suppression" onClose={() => setDeleteItem(null)}>
+          <p className="text-sm text-gray-700 mb-6">Voulez-vous vraiment supprimer <strong>l'accident du {new Date(deleteItem.accident_date).toLocaleDateString('fr-FR')} de {deleteItem.worker.first_name} {deleteItem.worker.last_name}</strong> ? Cette action est irréversible.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setDeleteItem(null)}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+            <button type="button" onClick={() => deleteMutation.mutate(deleteItem.id)} disabled={deleteMutation.isPending}
+              className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg">
+              {deleteMutation.isPending ? 'Suppression...' : 'Supprimer'}
+            </button>
+          </div>
         </Modal>
       )}
     </div>

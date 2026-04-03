@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarDays, Plus, CheckCircle, XCircle, Play } from 'lucide-react'
+import { CalendarDays, Plus, CheckCircle, XCircle, Play, Pencil, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { Badge, APPOINTMENT_STATUS } from '../components/ui/Badge'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -28,6 +28,8 @@ export default function Appointments() {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [error, setError] = useState('')
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['appointments', date, status, page],
@@ -43,19 +45,19 @@ export default function Appointments() {
   const { data: workersData } = useQuery({
     queryKey: ['workers-all'],
     queryFn: async () => { const { data } = await api.get('/workers/?page_size=200'); return data },
-    enabled: showModal,
+    enabled: showModal || editItem !== null,
   })
 
   const { data: usersData } = useQuery({
     queryKey: ['users-all'],
     queryFn: async () => { const { data } = await api.get('/auth/users/?page_size=100'); return data },
-    enabled: showModal,
+    enabled: showModal || editItem !== null,
   })
 
   const { data: apptTypesData } = useQuery({
     queryKey: ['appointment-types'],
     queryFn: async () => { const { data } = await api.get('/appointment-types/?page_size=50'); return data },
-    enabled: showModal,
+    enabled: showModal || editItem !== null,
   })
 
   const action = useMutation({
@@ -83,6 +85,36 @@ export default function Appointments() {
     },
   })
 
+  const editMutation = useMutation({
+    mutationFn: async (payload: Record<string, string>) => {
+      const { data } = await api.patch(`/appointments/${editItem!.id}/`, payload)
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['appointments'] })
+      setEditItem(null)
+      setShowModal(false)
+      setForm(EMPTY)
+      setError('')
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data
+      if (detail && typeof detail === 'object') {
+        setError(Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | '))
+      } else setError("Erreur lors de la modification.")
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/appointments/${id}/`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['appointments'] })
+      setDeleteItem(null)
+    },
+  })
+
   const appointments: Appointment[] = data?.results ?? []
   const totalPages = data ? Math.ceil(data.count / 20) : 1
 
@@ -93,7 +125,11 @@ export default function Appointments() {
     setError('')
     const payload: Record<string, string> = { ...form }
     if (!payload.appointment_type) delete payload.appointment_type
-    mutation.mutate(payload)
+    if (editItem) {
+      editMutation.mutate(payload)
+    } else {
+      mutation.mutate(payload)
+    }
   }
 
   const workers = workersData?.results ?? []
@@ -107,7 +143,7 @@ export default function Appointments() {
         subtitle={`${data?.count ?? 0} rendez-vous`}
         action={
           <button
-            onClick={() => { setShowModal(true); setError('') }}
+            onClick={() => { setShowModal(true); setEditItem(null); setForm(EMPTY); setError('') }}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
           >
             <Plus size={15} /> Nouveau RV
@@ -197,6 +233,25 @@ export default function Appointments() {
                           </button>
                         </>
                       )}
+                      <button onClick={() => {
+                        setEditItem(a)
+                        setForm({
+                          worker: String(a.worker.id),
+                          doctor: String(a.doctor.id),
+                          appointment_type: a.appointment_type ? String(a.appointment_type.id) : '',
+                          scheduled_at: a.scheduled_at ? a.scheduled_at.slice(0, 16) : '',
+                          reason: a.reason ?? '',
+                        })
+                        setShowModal(true)
+                        setError('')
+                      }}
+                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => setDeleteItem(a)}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -209,7 +264,7 @@ export default function Appointments() {
       </div>
 
       {showModal && (
-        <Modal title="Nouveau rendez-vous" onClose={() => setShowModal(false)}>
+        <Modal title={editItem ? "Modifier le rendez-vous" : "Nouveau rendez-vous"} onClose={() => { setShowModal(false); setEditItem(null); setForm(EMPTY) }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Travailleur *</label>
@@ -247,14 +302,28 @@ export default function Appointments() {
             </div>
             {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowModal(false)}
+              <button type="button" onClick={() => { setShowModal(false); setEditItem(null); setForm(EMPTY) }}
                 className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-              <button type="submit" disabled={mutation.isPending}
+              <button type="submit" disabled={mutation.isPending || editMutation.isPending}
                 className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg">
-                {mutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                {(mutation.isPending || editMutation.isPending) ? 'Enregistrement...' : editItem ? 'Modifier' : 'Enregistrer'}
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteItem && (
+        <Modal title="Confirmer la suppression" onClose={() => setDeleteItem(null)}>
+          <p className="text-sm text-gray-700 mb-6">Voulez-vous vraiment supprimer <strong>le rendez-vous du {new Date(deleteItem.scheduled_at).toLocaleDateString('fr-FR')}</strong> ? Cette action est irréversible.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setDeleteItem(null)}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+            <button type="button" onClick={() => deleteMutation.mutate(deleteItem.id)} disabled={deleteMutation.isPending}
+              className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg">
+              {deleteMutation.isPending ? 'Suppression...' : 'Supprimer'}
+            </button>
+          </div>
         </Modal>
       )}
     </div>

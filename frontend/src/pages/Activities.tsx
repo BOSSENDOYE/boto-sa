@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
+import { useToast } from '../hooks/useToast'
 import { api } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Pagination } from '../components/ui/Pagination'
@@ -28,12 +29,15 @@ const EMPTY = {
 
 export default function Activities() {
   const qc = useQueryClient()
+  const { toast } = useToast()
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [page, setPage] = useState(1)
   const [show, setShow] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [error, setError] = useState('')
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['activities', search, typeFilter, page],
@@ -56,12 +60,49 @@ export default function Activities() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['activities'] })
+      toast('Enregistrement réussi')
       setShow(false); setForm(EMPTY); setError('')
     },
     onError: (err: any) => {
       const d = err?.response?.data
-      if (d && typeof d === 'object') setError(Object.entries(d).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | '))
-      else setError("Erreur lors de l'enregistrement.")
+      const errMsg = d && typeof d === 'object' ? Object.entries(d).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | ') : "Erreur lors de l'enregistrement."
+      toast(errMsg, 'error')
+      setError(errMsg)
+    },
+  })
+
+  const editMutation = useMutation({
+    mutationFn: async (f: typeof EMPTY) => {
+      const { data } = await api.patch(`/activities/${editItem!.id}/`, {
+        ...f,
+        participants_count: Number(f.participants_count),
+      })
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['activities'] })
+      toast('Modification réussie')
+      setEditItem(null)
+      setShow(false)
+      setForm(EMPTY)
+      setError('')
+    },
+    onError: (err: any) => {
+      const d = err?.response?.data
+      const errMsg = d && typeof d === 'object' ? Object.entries(d).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | ') : "Erreur lors de la modification."
+      toast(errMsg, 'error')
+      setError(errMsg)
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/activities/${id}/`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['activities'] })
+      toast('Suppression réussie')
+      setDeleteItem(null)
     },
   })
 
@@ -70,13 +111,23 @@ export default function Activities() {
 
   function set(f: string, v: string) { setForm(prev => ({ ...prev, [f]: v })) }
 
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError('')
+    if (editItem) {
+      editMutation.mutate(form)
+    } else {
+      mutation.mutate(form)
+    }
+  }
+
   return (
     <div className="space-y-5 max-w-6xl">
       <PageHeader
         title="Activités du service médical"
         subtitle={`${data?.count ?? 0} activité(s)`}
         action={
-          <button onClick={() => { setShow(true); setError('') }}
+          <button onClick={() => { setShow(true); setEditItem(null); setForm(EMPTY); setError('') }}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
             <Plus size={15} /> Nouvelle activité
           </button>
@@ -107,13 +158,14 @@ export default function Activities() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Lieu</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Participants</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Réalisé par</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Chargement...</td></tr>
+              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Chargement...</td></tr>
             ) : activities.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Aucune activité enregistrée.</td></tr>
+              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Aucune activité enregistrée.</td></tr>
             ) : activities.map((a: any) => {
               const typeMeta = TYPE_MAP[a.activity_type]
               return (
@@ -129,6 +181,31 @@ export default function Activities() {
                   <td className="px-4 py-3 text-gray-600">{a.location || '—'}</td>
                   <td className="px-4 py-3 text-center text-gray-700 font-medium">{a.participants_count}</td>
                   <td className="px-4 py-3 text-gray-600">{a.conducted_by_name}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <button onClick={() => {
+                        setEditItem(a)
+                        setForm({
+                          activity_type: a.activity_type,
+                          title: a.title,
+                          activity_date: a.activity_date,
+                          location: a.location ?? '',
+                          participants_count: String(a.participants_count ?? 0),
+                          description: a.description ?? '',
+                          outcome: a.outcome ?? '',
+                        })
+                        setShow(true)
+                        setError('')
+                      }}
+                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => setDeleteItem(a)}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               )
             })}
@@ -139,8 +216,8 @@ export default function Activities() {
       </div>
 
       {show && (
-        <Modal title="Nouvelle activité du service médical" onClose={() => setShow(false)}>
-          <form onSubmit={e => { e.preventDefault(); setError(''); mutation.mutate(form) }} className="space-y-4">
+        <Modal title={editItem ? "Modifier l'activité" : "Nouvelle activité du service médical"} onClose={() => { setShow(false); setEditItem(null); setForm(EMPTY) }}>
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Type d'activité *</label>
               <select required value={form.activity_type} onChange={e => set('activity_type', e.target.value)}
@@ -186,14 +263,28 @@ export default function Activities() {
             </div>
             {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShow(false)}
+              <button type="button" onClick={() => { setShow(false); setEditItem(null); setForm(EMPTY) }}
                 className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-              <button type="submit" disabled={mutation.isPending}
+              <button type="submit" disabled={mutation.isPending || editMutation.isPending}
                 className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg">
-                {mutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                {(mutation.isPending || editMutation.isPending) ? 'Enregistrement...' : editItem ? 'Modifier' : 'Enregistrer'}
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteItem && (
+        <Modal title="Confirmer la suppression" onClose={() => setDeleteItem(null)}>
+          <p className="text-sm text-gray-700 mb-6">Voulez-vous vraiment supprimer <strong>l'activité "{deleteItem.title}"</strong> ? Cette action est irréversible.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setDeleteItem(null)}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+            <button type="button" onClick={() => deleteMutation.mutate(deleteItem.id)} disabled={deleteMutation.isPending}
+              className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg">
+              {deleteMutation.isPending ? 'Suppression...' : 'Supprimer'}
+            </button>
+          </div>
         </Modal>
       )}
     </div>

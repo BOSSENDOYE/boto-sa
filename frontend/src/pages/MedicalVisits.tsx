@@ -1,6 +1,9 @@
-import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, FlaskConical, ClipboardList, Award } from 'lucide-react'
+
+
+
+import React, { useState } from 'react'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { Plus, FlaskConical, ClipboardList, Award, Pencil, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { Badge, VISIT_TYPE, APTITUDE } from '../components/ui/Badge'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -149,6 +152,7 @@ export default function MedicalVisits() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Médecin</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Aptitude</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Prochaine visite</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -178,6 +182,18 @@ export default function MedicalVisits() {
                     {v.aptitude_certificate?.next_visit_date
                       ? new Date(v.aptitude_certificate.next_visit_date).toLocaleDateString('fr-FR')
                       : '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <button onClick={(e) => { e.stopPropagation(); /* TODO: edit */ }}
+                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); /* TODO: delete */ }}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )

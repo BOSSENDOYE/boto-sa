@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { Badge, SMS_STATUS, RISK_LEVEL, RISK_TYPE } from '../components/ui/Badge'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -35,18 +35,22 @@ export default function Occupational() {
   )
 }
 
+const SMS_EMPTY = {
+  worker: '', assigned_doctor: '', risk_type: 'NOISE', risk_agent: '',
+  started_date: new Date().toISOString().split('T')[0],
+  review_date: '', frequency_months: '6',
+}
+
 function SMSTab() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<SMSStatus | ''>('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState({
-    worker: '', assigned_doctor: '', risk_type: 'NOISE', risk_agent: '',
-    started_date: new Date().toISOString().split('T')[0],
-    review_date: '', frequency_months: '6',
-  })
+  const [form, setForm] = useState(SMS_EMPTY)
   const [error, setError] = useState('')
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['sms', search, status, page],
@@ -62,24 +66,24 @@ function SMSTab() {
   const { data: workersData } = useQuery({
     queryKey: ['workers-all'],
     queryFn: async () => { const { data } = await api.get('/workers/?page_size=200'); return data },
-    enabled: showModal,
+    enabled: showModal || editItem !== null,
   })
 
   const { data: usersData } = useQuery({
     queryKey: ['users-all'],
     queryFn: async () => { const { data } = await api.get('/auth/users/?page_size=100'); return data },
-    enabled: showModal,
+    enabled: showModal || editItem !== null,
   })
 
   const mutation = useMutation({
-    mutationFn: async (payload: typeof form) => {
+    mutationFn: async (payload: typeof SMS_EMPTY) => {
       const { data } = await api.post('/sms/', payload)
       return data
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sms'] })
       setShowModal(false)
-      setForm({ worker: '', assigned_doctor: '', risk_type: 'NOISE', risk_agent: '', started_date: new Date().toISOString().split('T')[0], review_date: '', frequency_months: '6' })
+      setForm(SMS_EMPTY)
       setError('')
     },
     onError: (err: any) => {
@@ -87,6 +91,36 @@ function SMSTab() {
       if (detail && typeof detail === 'object') {
         setError(Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | '))
       } else setError("Erreur lors de l'enregistrement.")
+    },
+  })
+
+  const editMutation = useMutation({
+    mutationFn: async (payload: typeof SMS_EMPTY) => {
+      const { data } = await api.patch(`/sms/${editItem!.id}/`, payload)
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sms'] })
+      setEditItem(null)
+      setShowModal(false)
+      setForm(SMS_EMPTY)
+      setError('')
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data
+      if (detail && typeof detail === 'object') {
+        setError(Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | '))
+      } else setError("Erreur lors de la modification.")
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/sms/${id}/`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sms'] })
+      setDeleteItem(null)
     },
   })
 
@@ -100,7 +134,11 @@ function SMSTab() {
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
-    mutation.mutate(form)
+    if (editItem) {
+      editMutation.mutate(form)
+    } else {
+      mutation.mutate(form)
+    }
   }
 
   return (
@@ -121,7 +159,7 @@ function SMSTab() {
             <option value="ENDED">Terminée</option>
           </select>
         </div>
-        <button onClick={() => { setShowModal(true); setError('') }}
+        <button onClick={() => { setShowModal(true); setEditItem(null); setForm(SMS_EMPTY); setError('') }}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
           <Plus size={15} /> Nouvelle SMS
         </button>
@@ -138,17 +176,18 @@ function SMSTab() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Prochaine revue</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Fréquence</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Statut</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Chargement...</td></tr>
+              <tr><td colSpan={8} className="text-center py-10 text-gray-400">Chargement...</td></tr>
             ) : items.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Aucune surveillance trouvée.</td></tr>
+              <tr><td colSpan={8} className="text-center py-10 text-gray-400">Aucune surveillance trouvée.</td></tr>
             ) : items.map((s) => {
               const badge = SMS_STATUS[s.status]
               return (
-                <tr key={s.id} className="hover:bg-gray-50 cursor-pointer transition-colors">
+                <tr key={s.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
                     <p className="font-medium text-gray-900">{s.worker?.first_name} {s.worker?.last_name}</p>
                     <p className="text-xs text-gray-400 font-mono">{s.worker?.matricule}</p>
@@ -159,6 +198,31 @@ function SMSTab() {
                   <td className="px-4 py-3 text-gray-600">{new Date(s.review_date).toLocaleDateString('fr-FR')}</td>
                   <td className="px-4 py-3 text-gray-600">{s.frequency_months} mois</td>
                   <td className="px-4 py-3">{badge && <Badge label={badge.label} color={badge.color} />}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <button onClick={() => {
+                        setEditItem(s)
+                        setForm({
+                          worker: String(s.worker?.id ?? ''),
+                          assigned_doctor: String(s.assigned_doctor?.id ?? ''),
+                          risk_type: s.risk_type,
+                          risk_agent: s.risk_agent ?? '',
+                          started_date: s.started_date,
+                          review_date: s.review_date,
+                          frequency_months: String(s.frequency_months),
+                        })
+                        setShowModal(true)
+                        setError('')
+                      }}
+                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => setDeleteItem(s)}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               )
             })}
@@ -169,7 +233,7 @@ function SMSTab() {
       </div>
 
       {showModal && (
-        <Modal title="Nouvelle surveillance médicale spéciale" onClose={() => setShowModal(false)}>
+        <Modal title={editItem ? "Modifier la surveillance" : "Nouvelle surveillance médicale spéciale"} onClose={() => { setShowModal(false); setEditItem(null); setForm(SMS_EMPTY) }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Travailleur *</label>
@@ -228,29 +292,47 @@ function SMSTab() {
             </div>
             {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowModal(false)}
+              <button type="button" onClick={() => { setShowModal(false); setEditItem(null); setForm(SMS_EMPTY) }}
                 className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-              <button type="submit" disabled={mutation.isPending}
+              <button type="submit" disabled={mutation.isPending || editMutation.isPending}
                 className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg">
-                {mutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                {(mutation.isPending || editMutation.isPending) ? 'Enregistrement...' : editItem ? 'Modifier' : 'Enregistrer'}
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteItem && (
+        <Modal title="Confirmer la suppression" onClose={() => setDeleteItem(null)}>
+          <p className="text-sm text-gray-700 mb-6">Voulez-vous vraiment supprimer <strong>la surveillance de {deleteItem.worker?.first_name} {deleteItem.worker?.last_name}</strong> ? Cette action est irréversible.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setDeleteItem(null)}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+            <button type="button" onClick={() => deleteMutation.mutate(deleteItem.id)} disabled={deleteMutation.isPending}
+              className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg">
+              {deleteMutation.isPending ? 'Suppression...' : 'Supprimer'}
+            </button>
+          </div>
         </Modal>
       )}
     </>
   )
 }
 
+const RISKS_EMPTY = {
+  job_position: '', risk_type: 'NOISE', risk_agent: '',
+  risk_level: '1', preventive_measures: '', ppe_required: '',
+}
+
 function RisksTab() {
   const qc = useQueryClient()
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState({
-    job_position: '', risk_type: 'NOISE', risk_agent: '',
-    risk_level: '1', preventive_measures: '', ppe_required: '',
-  })
+  const [form, setForm] = useState(RISKS_EMPTY)
   const [error, setError] = useState('')
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['work-risks', page],
@@ -263,18 +345,18 @@ function RisksTab() {
   const { data: positionsData } = useQuery({
     queryKey: ['job-positions-all'],
     queryFn: async () => { const { data } = await api.get('/job-positions/?page_size=100'); return data },
-    enabled: showModal,
+    enabled: showModal || editItem !== null,
   })
 
   const mutation = useMutation({
-    mutationFn: async (payload: typeof form) => {
+    mutationFn: async (payload: typeof RISKS_EMPTY) => {
       const { data } = await api.post('/work-risks/', payload)
       return data
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['work-risks'] })
       setShowModal(false)
-      setForm({ job_position: '', risk_type: 'NOISE', risk_agent: '', risk_level: '1', preventive_measures: '', ppe_required: '' })
+      setForm(RISKS_EMPTY)
       setError('')
     },
     onError: (err: any) => {
@@ -282,6 +364,36 @@ function RisksTab() {
       if (detail && typeof detail === 'object') {
         setError(Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | '))
       } else setError("Erreur lors de l'enregistrement.")
+    },
+  })
+
+  const editMutation = useMutation({
+    mutationFn: async (payload: typeof RISKS_EMPTY) => {
+      const { data } = await api.patch(`/work-risks/${editItem!.id}/`, payload)
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['work-risks'] })
+      setEditItem(null)
+      setShowModal(false)
+      setForm(RISKS_EMPTY)
+      setError('')
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data
+      if (detail && typeof detail === 'object') {
+        setError(Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | '))
+      } else setError("Erreur lors de la modification.")
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/work-risks/${id}/`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['work-risks'] })
+      setDeleteItem(null)
     },
   })
 
@@ -294,13 +406,17 @@ function RisksTab() {
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
-    mutation.mutate(form)
+    if (editItem) {
+      editMutation.mutate(form)
+    } else {
+      mutation.mutate(form)
+    }
   }
 
   return (
     <>
       <div className="flex justify-end">
-        <button onClick={() => { setShowModal(true); setError('') }}
+        <button onClick={() => { setShowModal(true); setEditItem(null); setForm(RISKS_EMPTY); setError('') }}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
           <Plus size={15} /> Ajouter un risque
         </button>
@@ -315,13 +431,14 @@ function RisksTab() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Agent</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Niveau</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">EPI requis</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={5} className="text-center py-10 text-gray-400">Chargement...</td></tr>
+              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Chargement...</td></tr>
             ) : risks.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-10 text-gray-400">Aucun risque enregistré.</td></tr>
+              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Aucun risque enregistré.</td></tr>
             ) : risks.map((r) => {
               const levelBadge = RISK_LEVEL[r.risk_level]
               return (
@@ -331,6 +448,30 @@ function RisksTab() {
                   <td className="px-4 py-3 text-gray-600">{r.risk_agent || '—'}</td>
                   <td className="px-4 py-3">{levelBadge && <Badge label={levelBadge.label} color={levelBadge.color} />}</td>
                   <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate">{r.ppe_required || '—'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <button onClick={() => {
+                        setEditItem(r)
+                        setForm({
+                          job_position: String(r.job_position?.id ?? ''),
+                          risk_type: r.risk_type,
+                          risk_agent: r.risk_agent ?? '',
+                          risk_level: String(r.risk_level),
+                          preventive_measures: r.preventive_measures ?? '',
+                          ppe_required: r.ppe_required ?? '',
+                        })
+                        setShowModal(true)
+                        setError('')
+                      }}
+                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => setDeleteItem(r)}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               )
             })}
@@ -341,7 +482,7 @@ function RisksTab() {
       </div>
 
       {showModal && (
-        <Modal title="Ajouter un risque professionnel" onClose={() => setShowModal(false)}>
+        <Modal title={editItem ? "Modifier le risque" : "Ajouter un risque professionnel"} onClose={() => { setShowModal(false); setEditItem(null); setForm(RISKS_EMPTY) }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Poste de travail *</label>
@@ -395,14 +536,28 @@ function RisksTab() {
             </div>
             {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowModal(false)}
+              <button type="button" onClick={() => { setShowModal(false); setEditItem(null); setForm(RISKS_EMPTY) }}
                 className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-              <button type="submit" disabled={mutation.isPending}
+              <button type="submit" disabled={mutation.isPending || editMutation.isPending}
                 className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg">
-                {mutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                {(mutation.isPending || editMutation.isPending) ? 'Enregistrement...' : editItem ? 'Modifier' : 'Enregistrer'}
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteItem && (
+        <Modal title="Confirmer la suppression" onClose={() => setDeleteItem(null)}>
+          <p className="text-sm text-gray-700 mb-6">Voulez-vous vraiment supprimer <strong>le risque "{RISK_TYPE[deleteItem.risk_type] ?? deleteItem.risk_type}" du poste {deleteItem.job_position?.title}</strong> ? Cette action est irréversible.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setDeleteItem(null)}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+            <button type="button" onClick={() => deleteMutation.mutate(deleteItem.id)} disabled={deleteMutation.isPending}
+              className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg">
+              {deleteMutation.isPending ? 'Suppression...' : 'Supprimer'}
+            </button>
+          </div>
         </Modal>
       )}
     </>

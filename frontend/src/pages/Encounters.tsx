@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { Badge, ENCOUNTER_STATUS, ENCOUNTER_TYPE } from '../components/ui/Badge'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -37,6 +37,8 @@ export default function Encounters() {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [error, setError] = useState('')
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['encounters', search, type, status, date, page],
@@ -53,13 +55,13 @@ export default function Encounters() {
   const { data: workersData } = useQuery({
     queryKey: ['workers-all'],
     queryFn: async () => { const { data } = await api.get('/workers/?page_size=200'); return data },
-    enabled: showModal,
+    enabled: showModal || editItem !== null,
   })
 
   const { data: usersData } = useQuery({
     queryKey: ['users-all'],
     queryFn: async () => { const { data } = await api.get('/auth/users/?page_size=100'); return data },
-    enabled: showModal,
+    enabled: showModal || editItem !== null,
   })
 
   const mutation = useMutation({
@@ -81,6 +83,36 @@ export default function Encounters() {
     },
   })
 
+  const editMutation = useMutation({
+    mutationFn: async (payload: typeof EMPTY) => {
+      const { data } = await api.patch(`/encounters/${editItem!.id}/`, payload)
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['encounters'] })
+      setEditItem(null)
+      setShowModal(false)
+      setForm(EMPTY)
+      setError('')
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data
+      if (detail && typeof detail === 'object') {
+        setError(Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | '))
+      } else setError("Erreur lors de la modification.")
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/encounters/${id}/`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['encounters'] })
+      setDeleteItem(null)
+    },
+  })
+
   const encounters: ClinicalEncounter[] = data?.results ?? []
   const totalPages = data ? Math.ceil(data.count / 20) : 1
   const workers = workersData?.results ?? []
@@ -92,7 +124,11 @@ export default function Encounters() {
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
-    mutation.mutate(form)
+    if (editItem) {
+      editMutation.mutate(form)
+    } else {
+      mutation.mutate(form)
+    }
   }
 
   return (
@@ -101,7 +137,7 @@ export default function Encounters() {
         title="Actes médicaux"
         subtitle={`${data?.count ?? 0} acte(s)`}
         action={
-          <button onClick={() => { setShowModal(true); setError('') }}
+          <button onClick={() => { setShowModal(true); setEditItem(null); setForm(EMPTY); setError('') }}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
             <Plus size={15} /> Nouvel acte
           </button>
@@ -136,18 +172,19 @@ export default function Encounters() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Type</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Médecin</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Statut</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={5} className="text-center py-10 text-gray-400">Chargement...</td></tr>
+              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Chargement...</td></tr>
             ) : encounters.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-10 text-gray-400">Aucun acte trouvé.</td></tr>
+              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Aucun acte trouvé.</td></tr>
             ) : encounters.map((enc) => {
               const typeBadge = ENCOUNTER_TYPE[enc.encounter_type]
               const statusBadge = ENCOUNTER_STATUS[enc.status]
               return (
-                <tr key={enc.id} className="hover:bg-gray-50 cursor-pointer transition-colors">
+                <tr key={enc.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-700">
                     {new Date(enc.encounter_date).toLocaleDateString('fr-FR')}
                     <span className="ml-2 text-gray-400 text-xs">{enc.encounter_time?.slice(0, 5)}</span>
@@ -159,6 +196,29 @@ export default function Encounters() {
                   <td className="px-4 py-3">{typeBadge && <Badge label={typeBadge.label} color={typeBadge.color} />}</td>
                   <td className="px-4 py-3 text-gray-600">Dr {enc.doctor.last_name}</td>
                   <td className="px-4 py-3">{statusBadge && <Badge label={statusBadge.label} color={statusBadge.color} />}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <button onClick={() => {
+                        setEditItem(enc)
+                        setForm({
+                          worker: String(enc.worker.id),
+                          doctor: String(enc.doctor.id),
+                          encounter_date: enc.encounter_date,
+                          encounter_time: enc.encounter_time?.slice(0, 5) ?? '',
+                          encounter_type: enc.encounter_type,
+                        })
+                        setShowModal(true)
+                        setError('')
+                      }}
+                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => setDeleteItem(enc)}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               )
             })}
@@ -169,7 +229,7 @@ export default function Encounters() {
       </div>
 
       {showModal && (
-        <Modal title="Nouvel acte médical" onClose={() => setShowModal(false)}>
+        <Modal title={editItem ? "Modifier l'acte médical" : "Nouvel acte médical"} onClose={() => { setShowModal(false); setEditItem(null); setForm(EMPTY) }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Travailleur *</label>
@@ -212,14 +272,28 @@ export default function Encounters() {
             </div>
             {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowModal(false)}
+              <button type="button" onClick={() => { setShowModal(false); setEditItem(null); setForm(EMPTY) }}
                 className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-              <button type="submit" disabled={mutation.isPending}
+              <button type="submit" disabled={mutation.isPending || editMutation.isPending}
                 className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg">
-                {mutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                {(mutation.isPending || editMutation.isPending) ? 'Enregistrement...' : editItem ? 'Modifier' : 'Enregistrer'}
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteItem && (
+        <Modal title="Confirmer la suppression" onClose={() => setDeleteItem(null)}>
+          <p className="text-sm text-gray-700 mb-6">Voulez-vous vraiment supprimer <strong>l'acte du {new Date(deleteItem.encounter_date).toLocaleDateString('fr-FR')}</strong> ? Cette action est irréversible.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setDeleteItem(null)}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+            <button type="button" onClick={() => deleteMutation.mutate(deleteItem.id)} disabled={deleteMutation.isPending}
+              className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg">
+              {deleteMutation.isPending ? 'Suppression...' : 'Supprimer'}
+            </button>
+          </div>
         </Modal>
       )}
     </div>

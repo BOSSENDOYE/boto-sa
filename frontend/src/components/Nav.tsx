@@ -1,10 +1,12 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, CalendarDays, Stethoscope,
-  LogOut, Building2, Microscope, ShieldCheck, BarChart3,
+  Building2, Microscope, ShieldCheck, BarChart3,
   HeartPulse, AlertTriangle, Briefcase, Settings,
-  Activity, ClipboardList, Megaphone,
+  Activity, ClipboardList, Megaphone, Bell,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '../lib/api'
 import { logout } from '../lib/auth'
 import { useAuth } from '../hooks/useAuth'
 
@@ -54,6 +56,15 @@ const sections = [
 export default function Nav() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { data: unreadCountData } = useQuery({
+    queryKey: ['notifications-count'],
+    queryFn: async () => {
+      const { data } = await api.get('/notifications/?page_size=1&is_read=false')
+      return data?.count ?? 0
+    },
+    refetchInterval: 30000,
+  })
+  const unreadCount = unreadCountData ?? 0
 
   async function handleLogout() {
     await logout()
@@ -61,7 +72,7 @@ export default function Nav() {
   }
 
   return (
-    <aside className="w-60 bg-white border-r border-gray-200 flex flex-col min-h-screen shrink-0">
+    <aside className="w-60 bg-white border-r border-gray-200 flex flex-col min-h-screen shrink-0 hidden lg:flex">
       {/* Logo */}
       <div className="h-16 flex items-center px-5 border-b border-gray-200">
         <div className="bg-blue-600 rounded-lg p-1.5 mr-2.5">
@@ -132,13 +143,29 @@ export default function Nav() {
             <p className="text-xs text-gray-400 truncate">{user.role}</p>
           </div>
         )}
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
-        >
-          <LogOut size={16} />
-          Déconnexion
-        </button>
+        {unreadCount > 0 && (
+          <a href="/notifications" className="relative p-1.5 mx-1 rounded-lg text-red-500 hover:bg-red-50 transition-colors group">
+            <Bell size={18} />
+            <div className="absolute -top-1 -right-1 min-w-[18px] h-5 flex items-center justify-center text-xs font-bold text-white bg-red-500 rounded-full">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </div>
+          </a>
+        )}
+        <div className="px-2 py-1.5 mb-1 relative">
+          <button className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors group">
+            <span className="truncate">{user?.first_name} {user?.last_name}</span>
+            <svg className="w-4 h-4 ml-auto group-hover:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          <div className="absolute right-0 bottom-full mb-2 w-48 bg-white border border-gray-200 rounded-xl shadow-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+            <a href="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Mon profil</a>
+            <a href="/notifications" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Notifications ({unreadCount})</a>
+            <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+              Déconnexion
+            </button>
+          </div>
+        </div>
       </div>
     </aside>
   )

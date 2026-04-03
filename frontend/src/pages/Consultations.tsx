@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { Badge, ENCOUNTER_STATUS } from '../components/ui/Badge'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -36,6 +36,8 @@ export default function Consultations() {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [error, setError] = useState('')
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['consultations', search, referral, page],
@@ -51,13 +53,13 @@ export default function Consultations() {
   const { data: workersData } = useQuery({
     queryKey: ['workers-all'],
     queryFn: async () => { const { data } = await api.get('/workers/?page_size=200'); return data },
-    enabled: showModal,
+    enabled: showModal && !editItem,
   })
 
   const { data: usersData } = useQuery({
     queryKey: ['users-all'],
     queryFn: async () => { const { data } = await api.get('/auth/users/?page_size=100'); return data },
-    enabled: showModal,
+    enabled: showModal && !editItem,
   })
 
   const mutation = useMutation({
@@ -106,6 +108,52 @@ export default function Consultations() {
     },
   })
 
+  const editMutation = useMutation({
+    mutationFn: async (payload: typeof EMPTY) => {
+      const body: Record<string, any> = {
+        chief_complaint: payload.chief_complaint,
+        disease_history: payload.disease_history,
+        family_history: payload.family_history,
+        personal_history: payload.personal_history,
+        physical_exam_findings: payload.physical_exam_findings,
+        working_diagnosis: payload.working_diagnosis,
+        final_diagnosis: payload.final_diagnosis,
+        icd10_code: payload.icd10_code,
+        treatment_plan: payload.treatment_plan,
+        referral_needed: payload.referral_needed === 'true',
+        referral_note: payload.referral_note,
+        sick_leave_days: payload.sick_leave_days,
+        work_restriction: payload.work_restriction,
+      }
+      if (payload.follow_up_date) body.follow_up_date = payload.follow_up_date
+      const { data } = await api.patch(`/consultations/${editItem!.id}/`, body)
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['consultations'] })
+      setEditItem(null)
+      setShowModal(false)
+      setForm(EMPTY)
+      setError('')
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data
+      if (detail && typeof detail === 'object') {
+        setError(Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | '))
+      } else setError("Erreur lors de la modification.")
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/consultations/${id}/`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['consultations'] })
+      setDeleteItem(null)
+    },
+  })
+
   const consultations: Consultation[] = data?.results ?? []
   const totalPages = data ? Math.ceil(data.count / 20) : 1
   const workers = workersData?.results ?? []
@@ -116,7 +164,11 @@ export default function Consultations() {
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
-    mutation.mutate(form)
+    if (editItem) {
+      editMutation.mutate(form)
+    } else {
+      mutation.mutate(form)
+    }
   }
 
   return (
@@ -125,7 +177,7 @@ export default function Consultations() {
         title="Consultations"
         subtitle={`${data?.count ?? 0} consultation(s)`}
         action={
-          <button onClick={() => { setShowModal(true); setError('') }}
+          <button onClick={() => { setShowModal(true); setEditItem(null); setForm(EMPTY); setError('') }}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
             <Plus size={15} /> Nouvelle consultation
           </button>
@@ -157,17 +209,18 @@ export default function Consultations() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Diagnostic final</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Arrêt (j.)</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Statut</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Chargement...</td></tr>
+              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Chargement...</td></tr>
             ) : consultations.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Aucune consultation trouvée.</td></tr>
+              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Aucune consultation trouvée.</td></tr>
             ) : consultations.map((c: any) => {
               const statusBadge = ENCOUNTER_STATUS[c.encounter?.status ?? '']
               return (
-                <tr key={c.id} className="hover:bg-gray-50 cursor-pointer transition-colors">
+                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-gray-600">
                     {c.encounter_date ? new Date(c.encounter_date).toLocaleDateString('fr-FR') : new Date(c.created_at).toLocaleDateString('fr-FR')}
                   </td>
@@ -184,6 +237,43 @@ export default function Consultations() {
                     {c.sick_leave_days > 0 ? <span className="text-orange-600 font-medium">{c.sick_leave_days}</span> : '0'}
                   </td>
                   <td className="px-4 py-3">{statusBadge && <Badge label={statusBadge.label} color={statusBadge.color} />}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <button onClick={() => {
+                        setEditItem(c)
+                        setForm({
+                          ...EMPTY,
+                          worker: String(c.encounter?.worker?.id ?? ''),
+                          doctor: String(c.encounter?.doctor?.id ?? ''),
+                          encounter_date: c.encounter_date ?? EMPTY.encounter_date,
+                          encounter_time: '',
+                          chief_complaint: c.chief_complaint ?? '',
+                          disease_history: c.disease_history ?? '',
+                          family_history: c.family_history ?? '',
+                          personal_history: c.personal_history ?? '',
+                          physical_exam_findings: c.physical_exam_findings ?? '',
+                          working_diagnosis: c.working_diagnosis ?? '',
+                          final_diagnosis: c.final_diagnosis ?? '',
+                          icd10_code: c.icd10_code ?? '',
+                          treatment_plan: c.treatment_plan ?? '',
+                          referral_needed: c.referral_needed ? 'true' : 'false',
+                          referral_note: c.referral_note ?? '',
+                          follow_up_date: c.follow_up_date ?? '',
+                          sick_leave_days: String(c.sick_leave_days ?? 0),
+                          work_restriction: c.work_restriction ?? '',
+                        })
+                        setShowModal(true)
+                        setError('')
+                      }}
+                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => setDeleteItem(c)}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               )
             })}
@@ -194,45 +284,55 @@ export default function Consultations() {
       </div>
 
       {showModal && (
-        <Modal title="Nouvelle consultation" onClose={() => setShowModal(false)} wide>
+        <Modal title={editItem ? "Modifier la consultation" : "Nouvelle consultation"} onClose={() => { setShowModal(false); setEditItem(null); setForm(EMPTY) }} wide>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Identité & date */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Travailleur *</label>
-                <select required value={form.worker} onChange={e => set('worker', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">— Sélectionner —</option>
-                  {workers.map((w: any) => <option key={w.id} value={String(w.id)}>{w.last_name} {w.first_name} ({w.matricule})</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Médecin *</label>
-                <select required value={form.doctor} onChange={e => set('doctor', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">— Sélectionner —</option>
-                  {doctors.map((u: any) => <option key={u.id} value={String(u.id)}>Dr {u.last_name} {u.first_name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Date *</label>
-                <input required type="date" value={form.encounter_date} onChange={e => set('encounter_date', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Heure</label>
-                <input type="time" value={form.encounter_time} onChange={e => set('encounter_time', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-            </div>
+            {/* Identité & date — only shown for new consultations */}
+            {!editItem && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Travailleur *</label>
+                    <select required value={form.worker} onChange={e => set('worker', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">— Sélectionner —</option>
+                      {workers.map((w: any) => <option key={w.id} value={String(w.id)}>{w.last_name} {w.first_name} ({w.matricule})</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Médecin *</label>
+                    <select required value={form.doctor} onChange={e => set('doctor', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">— Sélectionner —</option>
+                      {doctors.map((u: any) => <option key={u.id} value={String(u.id)}>Dr {u.last_name} {u.first_name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Date *</label>
+                    <input required type="date" value={form.encounter_date} onChange={e => set('encounter_date', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Heure</label>
+                    <input type="time" value={form.encounter_time} onChange={e => set('encounter_time', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {editItem && (
+              <p className="text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                Travailleur, médecin et date ne peuvent pas être modifiés.
+              </p>
+            )}
 
             {/* Motif & anamnèse */}
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">Anamnèse</p>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Motif de consultation *</label>
-              <textarea required value={form.chief_complaint} onChange={e => set('chief_complaint', e.target.value)}
+              <label className="block text-xs font-medium text-gray-700 mb-1">Motif de consultation {!editItem && '*'}</label>
+              <textarea required={!editItem} value={form.chief_complaint} onChange={e => set('chief_complaint', e.target.value)}
                 rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
             </div>
             <div>
@@ -319,14 +419,28 @@ export default function Consultations() {
 
             {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowModal(false)}
+              <button type="button" onClick={() => { setShowModal(false); setEditItem(null); setForm(EMPTY) }}
                 className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-              <button type="submit" disabled={mutation.isPending}
+              <button type="submit" disabled={mutation.isPending || editMutation.isPending}
                 className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg">
-                {mutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                {(mutation.isPending || editMutation.isPending) ? 'Enregistrement...' : editItem ? 'Modifier' : 'Enregistrer'}
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteItem && (
+        <Modal title="Confirmer la suppression" onClose={() => setDeleteItem(null)}>
+          <p className="text-sm text-gray-700 mb-6">Voulez-vous vraiment supprimer <strong>la consultation de {deleteItem.worker_name}</strong> ? Cette action est irréversible.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setDeleteItem(null)}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+            <button type="button" onClick={() => deleteMutation.mutate(deleteItem.id)} disabled={deleteMutation.isPending}
+              className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg">
+              {deleteMutation.isPending ? 'Suppression...' : 'Supprimer'}
+            </button>
+          </div>
         </Modal>
       )}
     </div>

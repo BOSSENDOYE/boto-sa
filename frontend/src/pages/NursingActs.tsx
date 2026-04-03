@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Activity, FlaskConical, Pill, Scissors } from 'lucide-react'
+import { Plus, Activity, FlaskConical, Pill, Scissors, Pencil, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Modal } from '../components/ui/Modal'
@@ -152,22 +152,23 @@ function VitalsTab() {
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Travailleur</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">TA (mmHg)</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">FC (/min)</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Temp. (°C)</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">SpO2 (%)</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Poids/Taille</th>
-            </tr>
-          </thead>
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Travailleur</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">TA (mmHg)</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">FC (/min)</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Temp. (°C)</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">SpO2 (%)</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Poids/Taille</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
+              </tr>
+            </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
               <tr><td colSpan={7} className="text-center py-8 text-gray-400">Chargement...</td></tr>
             ) : encounters.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-8 text-gray-400">Aucune constante enregistrée.</td></tr>
+              <tr><td colSpan={8} className="text-center py-8 text-gray-400">Aucune constante enregistrée.</td></tr>
             ) : encounters.map((enc) =>
               (enc.vitals?.length > 0 ? enc.vitals : [null]).map((v: any, vi: number) => (
                 <tr key={`${enc.id}-${vi}`} className="hover:bg-gray-50">
@@ -179,7 +180,23 @@ function VitalsTab() {
                     <td className="px-4 py-3 text-gray-700">{v.temperature ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-700">{v.oxygen_saturation ? `${v.oxygen_saturation}%` : '—'}</td>
                     <td className="px-4 py-3 text-gray-700">{v.weight_kg ? `${v.weight_kg}kg` : '—'}{v.height_cm ? ` / ${v.height_cm}cm` : ''}</td>
-                  </> : <td colSpan={5} className="px-4 py-3 text-gray-400 italic">Pas de constantes</td>}
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        <button onClick={() => {
+                          // TODO: Implement edit
+                        }}
+                          className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Modifier">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => {
+                          // TODO: Implement delete
+                        }}
+                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Supprimer">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </> : <td colSpan={6} className="px-4 py-3 text-gray-400 italic">Pas de constantes</td>}
                 </tr>
               ))
             )}

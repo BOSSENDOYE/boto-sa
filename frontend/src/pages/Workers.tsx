@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, UserPlus, Upload } from 'lucide-react'
+import { Search, UserPlus, Upload, Pencil, Trash2 } from 'lucide-react'
+import { useToast } from '../hooks/useToast'
 import { api } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Pagination } from '../components/ui/Pagination'
@@ -26,9 +27,12 @@ export default function Workers() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [error, setError] = useState('')
   const [importMsg, setImportMsg] = useState('')
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const queryClient = useQueryClient()
+  const { toast } = useToast()
 
   const { data, isLoading } = useQuery({
     queryKey: ['workers', search, isActive, contractType, page],
@@ -45,7 +49,7 @@ export default function Workers() {
   const { data: deptData } = useQuery({
     queryKey: ['departments-all'],
     queryFn: async () => { const { data } = await api.get('/departments/?page_size=100'); return data },
-    enabled: showModal,
+    enabled: showModal || editItem !== null,
   })
 
   const { data: posData } = useQuery({
@@ -56,7 +60,7 @@ export default function Workers() {
       const { data } = await api.get(`/job-positions/?${params}`)
       return data
     },
-    enabled: showModal,
+    enabled: showModal || editItem !== null,
   })
 
   const mutation = useMutation({
@@ -66,6 +70,7 @@ export default function Workers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workers'] })
+      toast('Enregistrement réussi')
       setShowModal(false)
       setForm(EMPTY_FORM)
       setError('')
@@ -75,6 +80,38 @@ export default function Workers() {
       if (detail && typeof detail === 'object') {
         setError(Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | '))
       } else setError("Erreur lors de l'enregistrement.")
+    },
+  })
+
+  const editMutation = useMutation({
+    mutationFn: async (payload: Record<string, string>) => {
+      const { data } = await api.patch(`/workers/${editItem!.id}/`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workers'] })
+      toast('Modification réussie')
+      setEditItem(null)
+      setShowModal(false)
+      setForm(EMPTY_FORM)
+      setError('')
+    },
+    onError: (err: any) => {
+      toast(errMsg || "Erreur lors de la modification", 'error')
+      const detail = err?.response?.data
+      if (detail && typeof detail === 'object') {
+        setError(Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | '))
+      } else setError("Erreur lors de la modification.")
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/workers/${id}/`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workers'] })
+      setDeleteItem(null)
     },
   })
 
@@ -89,9 +126,13 @@ export default function Workers() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['workers'] })
+      toast(`Import: ${data.success_count} OK, ${data.error_count} erreur(s)`)
       setImportMsg(`Import terminé : ${data.success_count} succès, ${data.error_count} erreur(s).`)
     },
-    onError: () => setImportMsg("Erreur lors de l'import."),
+    onError: () => {
+      toast('Erreur lors de l\'import', 'error')
+      setImportMsg("Erreur lors de l'import.")
+    },
   })
 
   const workers: any[] = data?.results ?? []
@@ -110,7 +151,11 @@ export default function Workers() {
     if (!payload.job_position) delete payload.job_position
     if (!payload.date_of_birth) delete payload.date_of_birth
     if (!payload.hire_date) delete payload.hire_date
-    mutation.mutate(payload)
+    if (editItem) {
+      editMutation.mutate(payload)
+    } else {
+      mutation.mutate(payload)
+    }
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -138,7 +183,7 @@ export default function Workers() {
             </button>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} />
             <button
-              onClick={() => { setShowModal(true); setError('') }}
+              onClick={() => { setShowModal(true); setEditItem(null); setForm(EMPTY_FORM); setError('') }}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
             >
               <UserPlus size={15} /> Ajouter
@@ -181,7 +226,8 @@ export default function Workers() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[800px]">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Matricule</th>
@@ -190,15 +236,16 @@ export default function Workers() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Poste</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Contrat</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Statut</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Chargement...</td></tr>
+              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Chargement...</td></tr>
             ) : workers.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Aucun travailleur trouvé.</td></tr>
+              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Aucun travailleur trouvé.</td></tr>
             ) : workers.map((w) => (
-              <tr key={w.id} className="hover:bg-gray-50 cursor-pointer transition-colors">
+              <tr key={w.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 font-mono text-xs text-gray-600">{w.matricule}</td>
                 <td className="px-4 py-3">
                   <p className="font-medium text-gray-900">{w.last_name} {w.first_name}</p>
@@ -216,16 +263,47 @@ export default function Workers() {
                     {w.is_active ? 'Actif' : 'Inactif'}
                   </span>
                 </td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-1">
+                    <button onClick={() => {
+                      setEditItem(w)
+                      setForm({
+                        matricule: w.matricule,
+                        first_name: w.first_name, last_name: w.last_name, gender: w.gender,
+                        date_of_birth: w.date_of_birth ?? '',
+                        hire_date: w.hire_date ?? '',
+                        phone: w.phone ?? '',
+                        contract_type: w.contract_type,
+                        department: w.department ? String(w.department) : '',
+                        job_position: w.job_position ? String(w.job_position) : '',
+                        emergency_contact: w.emergency_contact ?? '',
+                        emergency_phone: w.emergency_phone ?? '',
+                        blood_type: w.blood_type,
+                        known_allergies: w.known_allergies ?? '',
+                      })
+                      setShowModal(true)
+                      setError('')
+                    }}
+                      className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Modifier">
+                      <Pencil size={14} />
+                    </button>
+                    <button onClick={() => setDeleteItem(w)}
+                      className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Supprimer">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
         <Pagination page={page} totalPages={totalPages} totalCount={data?.count ?? 0}
           onPrev={() => setPage(p => p - 1)} onNext={() => setPage(p => p + 1)} label="travailleurs" />
       </div>
 
       {showModal && (
-        <Modal title="Nouveau travailleur" onClose={() => setShowModal(false)}>
+        <Modal title={editItem ? "Modifier le travailleur" : "Nouveau travailleur"} onClose={() => { setShowModal(false); setEditItem(null); setForm(EMPTY_FORM) }}>
           <form onSubmit={handleSubmit} className="space-y-4">
 
             {/* Matricule */}
@@ -353,14 +431,28 @@ export default function Workers() {
             {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
 
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowModal(false)}
+              <button type="button" onClick={() => { setShowModal(false); setEditItem(null); setForm(EMPTY_FORM) }}
                 className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-              <button type="submit" disabled={mutation.isPending}
+              <button type="submit" disabled={mutation.isPending || editMutation.isPending}
                 className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg">
-                {mutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                {(mutation.isPending || editMutation.isPending) ? 'Enregistrement...' : editItem ? 'Modifier' : 'Enregistrer'}
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteItem && (
+        <Modal title="Confirmer la suppression" onClose={() => setDeleteItem(null)}>
+          <p className="text-sm text-gray-700 mb-6">Voulez-vous vraiment supprimer <strong>{deleteItem.last_name} {deleteItem.first_name}</strong> ? Cette action est irréversible.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setDeleteItem(null)}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+            <button type="button" onClick={() => deleteMutation.mutate(deleteItem.id)} disabled={deleteMutation.isPending}
+              className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg">
+              {deleteMutation.isPending ? 'Suppression...' : 'Supprimer'}
+            </button>
+          </div>
         </Modal>
       )}
     </div>

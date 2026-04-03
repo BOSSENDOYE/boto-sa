@@ -19,6 +19,7 @@ urlpatterns = [
     path('api/v1/', include('apps.explorations.urls')),
     path('api/v1/', include('apps.occupational.urls')),
     path('api/v1/', include('apps.reports.urls')),
+    path('api/v1/', include('apps.notifications.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 admin.site.site_header = "Boto SA — Administration ERP Santé"

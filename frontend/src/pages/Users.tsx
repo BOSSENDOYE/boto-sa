@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, UserCheck, UserX } from 'lucide-react'
+import { Search, Plus, UserCheck, UserX, Pencil, Trash2 } from 'lucide-react'
+import { useToast } from '../hooks/useToast'
 import { api } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Pagination } from '../components/ui/Pagination'
@@ -26,12 +27,15 @@ const EMPTY = {
 
 export default function Users() {
   const qc = useQueryClient()
+  const { toast } = useToast()
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<UserRole | ''>('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState(EMPTY)
   const [error, setError] = useState('')
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['users', search, roleFilter, page],
@@ -51,6 +55,7 @@ export default function Users() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] })
+      toast('Enregistrement réussi')
       setShowModal(false)
       setForm(EMPTY)
       setError('')
@@ -63,6 +68,47 @@ export default function Users() {
     },
   })
 
+  const editMutation = useMutation({
+    mutationFn: async (payload: typeof EMPTY) => {
+      const body: any = {
+        email: payload.email,
+        first_name: payload.first_name,
+        last_name: payload.last_name,
+        role: payload.role,
+        phone: payload.phone,
+        specialization: payload.specialization,
+      }
+      if (payload.password) body.password = payload.password
+      const { data } = await api.patch(`/auth/users/${editItem!.id}/`, body)
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      toast('Modification réussie')
+      setEditItem(null)
+      setShowModal(false)
+      setForm(EMPTY)
+      setError('')
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data
+      const errMsg = detail && typeof detail === 'object' ? Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | ') : "Erreur lors de la modification."
+      toast(errMsg, 'error')
+      setError(errMsg)
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/auth/users/${id}/`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      toast('Suppression réussie')
+      setDeleteItem(null)
+    },
+  })
+
   const users: User[] = data?.results ?? data ?? []
   const totalCount = data?.count ?? users.length
   const totalPages = Math.max(1, Math.ceil(totalCount / 20))
@@ -72,7 +118,11 @@ export default function Users() {
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
-    mutation.mutate(form)
+    if (editItem) {
+      editMutation.mutate(form)
+    } else {
+      mutation.mutate(form)
+    }
   }
 
   return (
@@ -81,7 +131,7 @@ export default function Users() {
         title="Utilisateurs"
         subtitle={`${totalCount} utilisateur(s)`}
         action={
-          <button onClick={() => { setShowModal(true); setError('') }}
+          <button onClick={() => { setShowModal(true); setEditItem(null); setForm(EMPTY); setError('') }}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
             <Plus size={15} /> Nouvel utilisateur
           </button>
@@ -111,13 +161,14 @@ export default function Users() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Rôle</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Spécialisation</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Statut</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={5} className="text-center py-10 text-gray-400">Chargement...</td></tr>
+              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Chargement...</td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-10 text-gray-400">Aucun utilisateur trouvé.</td></tr>
+              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Aucun utilisateur trouvé.</td></tr>
             ) : users.map((u) => {
               const roleMeta = ROLE_MAP[u.role]
               return (
@@ -140,6 +191,23 @@ export default function Users() {
                       ? <span className="inline-flex items-center gap-1 text-xs text-green-700"><UserCheck size={13} /> Actif</span>
                       : <span className="inline-flex items-center gap-1 text-xs text-red-500"><UserX size={13} /> Inactif</span>}
                   </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <button onClick={() => {
+                        setEditItem(u)
+                        setForm({ email: u.email, first_name: u.first_name, last_name: u.last_name, role: u.role, password: '', phone: u.phone ?? '', specialization: u.specialization ?? '' })
+                        setShowModal(true)
+                        setError('')
+                      }}
+                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => setDeleteItem(u)}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               )
             })}
@@ -150,7 +218,7 @@ export default function Users() {
       </div>
 
       {showModal && (
-        <Modal title="Nouvel utilisateur" onClose={() => setShowModal(false)}>
+        <Modal title={editItem ? "Modifier l'utilisateur" : "Nouvel utilisateur"} onClose={() => { setShowModal(false); setEditItem(null); setForm(EMPTY) }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -170,8 +238,10 @@ export default function Users() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Mot de passe *</label>
-              <input required type="password" value={form.password} onChange={e => set('password', e.target.value)}
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                {editItem ? "Nouveau mot de passe (laisser vide pour ne pas changer)" : "Mot de passe *"}
+              </label>
+              <input required={!editItem} type="password" value={form.password} onChange={e => set('password', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
@@ -195,14 +265,28 @@ export default function Users() {
             </div>
             {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowModal(false)}
+              <button type="button" onClick={() => { setShowModal(false); setEditItem(null); setForm(EMPTY) }}
                 className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
-              <button type="submit" disabled={mutation.isPending}
+              <button type="submit" disabled={mutation.isPending || editMutation.isPending}
                 className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg">
-                {mutation.isPending ? 'Création...' : 'Créer'}
+                {(mutation.isPending || editMutation.isPending) ? 'Enregistrement...' : editItem ? 'Modifier' : 'Créer'}
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteItem && (
+        <Modal title="Confirmer la suppression" onClose={() => setDeleteItem(null)}>
+          <p className="text-sm text-gray-700 mb-6">Voulez-vous vraiment supprimer <strong>{deleteItem.last_name} {deleteItem.first_name}</strong> ? Cette action est irréversible.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setDeleteItem(null)}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+            <button type="button" onClick={() => deleteMutation.mutate(deleteItem.id)} disabled={deleteMutation.isPending}
+              className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg">
+              {deleteMutation.isPending ? 'Suppression...' : 'Supprimer'}
+            </button>
+          </div>
         </Modal>
       )}
     </div>

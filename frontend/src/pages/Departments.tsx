@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Building2 } from 'lucide-react'
+import { Plus, Building2, Pencil, Trash2 } from 'lucide-react'
+import { useToast } from '../hooks/useToast'
 import { api } from '../lib/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Modal } from '../components/ui/Modal'
@@ -50,7 +51,10 @@ function DepartmentsTab() {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ name: '', code: '', manager_name: '', site_location: '' })
   const [error, setError] = useState('')
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
   const queryClient = useQueryClient()
+  const { toast } = useToast()
 
   const { data, isLoading } = useQuery({
     queryKey: ['departments'],
@@ -68,6 +72,28 @@ function DepartmentsTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['departments'] })
       queryClient.invalidateQueries({ queryKey: ['departments-all'] })
+      toast('Enregistrement réussi')
+      setShowModal(false)
+      setForm({ name: '', code: '', manager_name: '', site_location: '' })
+      setError('')
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data
+      const errMsg = detail && typeof detail === 'object' ? Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | ') : "Erreur lors de l'enregistrement."
+      toast(errMsg, 'error')
+      setError(errMsg)
+    },
+  })
+
+  const editMutation = useMutation({
+    mutationFn: async (payload: typeof form) => {
+      const { data } = await api.patch(`/departments/${editItem!.id}/`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] })
+      queryClient.invalidateQueries({ queryKey: ['departments-all'] })
+      setEditItem(null)
       setShowModal(false)
       setForm({ name: '', code: '', manager_name: '', site_location: '' })
       setError('')
@@ -78,8 +104,19 @@ function DepartmentsTab() {
         const msg = Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | ')
         setError(msg)
       } else {
-        setError("Erreur lors de l'enregistrement.")
+        setError("Erreur lors de la modification.")
       }
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/departments/${id}/`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] })
+      queryClient.invalidateQueries({ queryKey: ['departments-all'] })
+      setDeleteItem(null)
     },
   })
 
@@ -92,14 +129,18 @@ function DepartmentsTab() {
   function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
-    mutation.mutate(form)
+    if (editItem) {
+      editMutation.mutate(form)
+    } else {
+      mutation.mutate(form)
+    }
   }
 
   return (
     <>
       <div className="flex justify-end">
         <button
-          onClick={() => { setShowModal(true); setError('') }}
+          onClick={() => { setShowModal(true); setEditItem(null); setForm({ name: '', code: '', manager_name: '', site_location: '' }); setError('') }}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           <Plus size={15} /> Nouveau département
@@ -115,13 +156,23 @@ function DepartmentsTab() {
           ) : departments.map((d) => (
             <div key={d.id} className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-sm transition-shadow cursor-pointer">
               <div className="flex items-start gap-3">
-                <div className="bg-blue-50 p-2 rounded-lg">
+                <div className="bg-blue-50 p-2 rounded-lg shrink-0">
                   <Building2 size={18} className="text-blue-600" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-semibold text-gray-900 truncate">{d.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-gray-900 truncate flex-1">{d.name}</h3>
                     <span className="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-0.5 rounded shrink-0">{d.code}</span>
+                    <div className="flex gap-1 shrink-0">
+                      <button onClick={(e) => { e.stopPropagation(); setEditItem(d); setForm({ name: d.name, code: d.code, manager_name: d.manager_name ?? '', site_location: d.site_location ?? '' }); setShowModal(true); setError('') }}
+                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Modifier">
+                        <Pencil size={13} />
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteItem(d) }}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Supprimer">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
                   {d.manager_name && (
                     <p className="text-xs text-gray-500 mt-1">Responsable: {d.manager_name}</p>
@@ -137,7 +188,7 @@ function DepartmentsTab() {
       )}
 
       {showModal && (
-        <Modal title="Nouveau département" onClose={() => setShowModal(false)}>
+        <Modal title={editItem ? "Modifier le département" : "Nouveau département"} onClose={() => { setShowModal(false); setEditItem(null); setForm({ name: '', code: '', manager_name: '', site_location: '' }) }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Nom *</label>
@@ -167,16 +218,30 @@ function DepartmentsTab() {
             {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
 
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowModal(false)}
+              <button type="button" onClick={() => { setShowModal(false); setEditItem(null); setForm({ name: '', code: '', manager_name: '', site_location: '' }) }}
                 className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                 Annuler
               </button>
-              <button type="submit" disabled={mutation.isPending}
+              <button type="submit" disabled={mutation.isPending || editMutation.isPending}
                 className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors">
-                {mutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                {(mutation.isPending || editMutation.isPending) ? 'Enregistrement...' : editItem ? 'Modifier' : 'Enregistrer'}
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteItem && (
+        <Modal title="Confirmer la suppression" onClose={() => setDeleteItem(null)}>
+          <p className="text-sm text-gray-700 mb-6">Voulez-vous vraiment supprimer <strong>le département "{deleteItem.name}"</strong> ? Cette action est irréversible.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setDeleteItem(null)}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+            <button type="button" onClick={() => deleteMutation.mutate(deleteItem.id)} disabled={deleteMutation.isPending}
+              className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg">
+              {deleteMutation.isPending ? 'Suppression...' : 'Supprimer'}
+            </button>
+          </div>
         </Modal>
       )}
     </>
@@ -188,6 +253,8 @@ function PositionsTab() {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ title: '', code: '', department: '', risk_level: 'LOW', description: '' })
   const [error, setError] = useState('')
+  const [editItem, setEditItem] = useState<any>(null)
+  const [deleteItem, setDeleteItem] = useState<any>(null)
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -204,7 +271,7 @@ function PositionsTab() {
       const { data } = await api.get('/departments/?page_size=100')
       return data
     },
-    enabled: showModal,
+    enabled: showModal || editItem !== null,
   })
 
   const mutation = useMutation({
@@ -230,6 +297,41 @@ function PositionsTab() {
     },
   })
 
+  const editMutation = useMutation({
+    mutationFn: async (payload: Record<string, string>) => {
+      const { data } = await api.patch(`/job-positions/${editItem!.id}/`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job-positions'] })
+      queryClient.invalidateQueries({ queryKey: ['job-positions-all'] })
+      setEditItem(null)
+      setShowModal(false)
+      setForm({ title: '', code: '', department: '', risk_level: 'LOW', description: '' })
+      setError('')
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data
+      if (detail && typeof detail === 'object') {
+        const msg = Object.entries(detail).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | ')
+        setError(msg)
+      } else {
+        setError("Erreur lors de la modification.")
+      }
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/job-positions/${id}/`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job-positions'] })
+      queryClient.invalidateQueries({ queryKey: ['job-positions-all'] })
+      setDeleteItem(null)
+    },
+  })
+
   const positions: JobPosition[] = data?.results ?? []
   const departments: Department[] = deptData?.results ?? []
   const totalPages = data ? Math.ceil(data.count / 25) : 1
@@ -243,7 +345,11 @@ function PositionsTab() {
     setError('')
     const payload: Record<string, string> = { ...form }
     if (!payload.department) delete payload.department
-    mutation.mutate(payload)
+    if (editItem) {
+      editMutation.mutate(payload)
+    } else {
+      mutation.mutate(payload)
+    }
   }
 
   return (
@@ -251,7 +357,7 @@ function PositionsTab() {
       <div className="flex justify-between items-center">
         <span className="text-sm text-gray-500">{data?.count ?? 0} poste(s)</span>
         <button
-          onClick={() => { setShowModal(true); setError('') }}
+          onClick={() => { setShowModal(true); setEditItem(null); setForm({ title: '', code: '', department: '', risk_level: 'LOW', description: '' }); setError('') }}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           <Plus size={15} /> Nouveau poste
@@ -266,17 +372,18 @@ function PositionsTab() {
               <th className="text-left px-4 py-3 font-medium text-gray-600">Intitulé</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Département</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">Niveau de risque</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={4} className="text-center py-10 text-gray-400">Chargement...</td></tr>
+              <tr><td colSpan={5} className="text-center py-10 text-gray-400">Chargement...</td></tr>
             ) : positions.length === 0 ? (
-              <tr><td colSpan={4} className="text-center py-10 text-gray-400">Aucun poste enregistré.</td></tr>
+              <tr><td colSpan={5} className="text-center py-10 text-gray-400">Aucun poste enregistré.</td></tr>
             ) : positions.map((p) => {
               const risk = RISK_LEVEL_LABELS[p.risk_level]
               return (
-                <tr key={p.id} className="hover:bg-gray-50 cursor-pointer transition-colors">
+                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 font-mono text-gray-600 text-xs">{p.code}</td>
                   <td className="px-4 py-3 font-medium text-gray-900">{p.title}</td>
                   <td className="px-4 py-3 text-gray-600">{p.department?.name ?? '—'}</td>
@@ -286,6 +393,29 @@ function PositionsTab() {
                         {risk.label}
                       </span>
                     )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <button onClick={() => {
+                        setEditItem(p)
+                        setForm({
+                          title: p.title,
+                          code: p.code,
+                          department: p.department ? String(p.department.id) : '',
+                          risk_level: p.risk_level,
+                          description: p.description ?? '',
+                        })
+                        setShowModal(true)
+                        setError('')
+                      }}
+                        className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors" title="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => setDeleteItem(p)}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )
@@ -302,7 +432,7 @@ function PositionsTab() {
       </div>
 
       {showModal && (
-        <Modal title="Nouveau poste de travail" onClose={() => setShowModal(false)}>
+        <Modal title={editItem ? "Modifier le poste" : "Nouveau poste de travail"} onClose={() => { setShowModal(false); setEditItem(null); setForm({ title: '', code: '', department: '', risk_level: 'LOW', description: '' }) }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Intitulé *</label>
@@ -344,16 +474,30 @@ function PositionsTab() {
             {error && <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
 
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowModal(false)}
+              <button type="button" onClick={() => { setShowModal(false); setEditItem(null); setForm({ title: '', code: '', department: '', risk_level: 'LOW', description: '' }) }}
                 className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                 Annuler
               </button>
-              <button type="submit" disabled={mutation.isPending}
+              <button type="submit" disabled={mutation.isPending || editMutation.isPending}
                 className="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors">
-                {mutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                {(mutation.isPending || editMutation.isPending) ? 'Enregistrement...' : editItem ? 'Modifier' : 'Enregistrer'}
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteItem && (
+        <Modal title="Confirmer la suppression" onClose={() => setDeleteItem(null)}>
+          <p className="text-sm text-gray-700 mb-6">Voulez-vous vraiment supprimer <strong>le poste "{deleteItem.title}"</strong> ? Cette action est irréversible.</p>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setDeleteItem(null)}
+              className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">Annuler</button>
+            <button type="button" onClick={() => deleteMutation.mutate(deleteItem.id)} disabled={deleteMutation.isPending}
+              className="px-4 py-2 text-sm font-medium bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg">
+              {deleteMutation.isPending ? 'Suppression...' : 'Supprimer'}
+            </button>
+          </div>
         </Modal>
       )}
     </>
